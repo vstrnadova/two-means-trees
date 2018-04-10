@@ -290,6 +290,7 @@ vector< TwoMeansTreeNode* > buildRandomForest(vector<double> X, int numTrees){
 	for(int i=0; i<numTrees; i++){
 		TwoMeansTreeNode* tree = buildTwoMeansTree(X, 0, depthThreshold);
 		forest.push_back(tree);
+		cout << "finished tree "<<i<<endl;
 	}
 	return forest;
 }
@@ -316,59 +317,41 @@ int main(){
 	*/
 		
 	vector<double> Y;
-	int datasetsize=100;
+	int datasetsize=500;
 	for(int i=0; i<datasetsize; i++){
 		Y.push_back((double) rand() / RAND_MAX);
 	}
-	TwoMeansTreeNode* tree2 = buildTwoMeansTree(Y, 0, 2);
+	TwoMeansTreeNode* tree2 = buildTwoMeansTree(Y, 0, 8);
 	cout << "Tree 2: (random numbers between 0 and 1)"<< endl;
 	printTree(tree2);	
 	cout << "Tree 2: number of points in tree = "<<numPoints(tree2)<<endl;
 	int ntrees = 100;
 	vector< TwoMeansTreeNode* > random2meansforest = buildRandomForest(Y,ntrees);
 	
-	double estimateddists[datasetsize][datasetsize];
+	// print out pairwise estimated similarities as well as true distances
+	double estimated_sim_ij=0.0;
+	ofstream true_est_comparefile;
+	true_est_comparefile.open("truedist_vs_estimatedsim.txt");
+	double true_dist_ij;
 	for(int i=0; i<datasetsize; i++){
 		for(int j=0; j<datasetsize; j++){
-  			estimateddists[i][j] = 0.0;
-		}
-	}	
-	for(int i=0; i<datasetsize; i++){
-		for(int j=0; j<datasetsize; j++){
+			estimated_sim_ij=0;
 			for(int k=0; k<ntrees; k++){	
 				if(appearInSameLeafNode(Y[i],Y[j],random2meansforest[k])){
-					estimateddists[i][j]++;
+					estimated_sim_ij++;
 					/*cout << "found "<<Y[i]<<" and "<<Y[j]
 						<< " in same node in tree"
 						<<k<<endl;*/
 				}
 			}
-		}
-	}
-	
-	double truedist[datasetsize][datasetsize];
-        ofstream similarityfile;
-        ofstream truedistsfile;
-        ofstream true_est_comparefile;
-	similarityfile.open ("estimated_similarities.txt");
-        truedistsfile.open ("true_distances.txt");
-	true_est_comparefile.open("truedist_vs_estimatedsim.txt");
-	
-	for(int i=0; i<datasetsize; i++){
-		for(int j=0; j<datasetsize; j++){
-			estimateddists[i][j] /= (double) ntrees;
-  			similarityfile << estimateddists[i][j]<<"\t";
-			truedist[i][j] = fabs(Y[i] - Y[j]);
-  			truedistsfile << truedist[i][j]<<"\t";
-			true_est_comparefile << truedist[i][j]
-				<<"\t"<<estimateddists[i][j]
+			estimated_sim_ij /= (double) ntrees;
+			true_dist_ij = fabs(Y[i]-Y[j]);
+			true_est_comparefile << true_dist_ij
+				<<"\t"<<estimated_sim_ij
 				<<endl;
 		}
-		similarityfile<<endl;	
-		truedistsfile<<endl;	
+		cout <<"finished printing similarities and true distances for point "<<i<<": "<<Y[i]<<endl;
 	}
-        similarityfile.close();
-        truedistsfile.close();
 	true_est_comparefile.close();
 
 	/*	
