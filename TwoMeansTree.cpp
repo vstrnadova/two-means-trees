@@ -1,6 +1,7 @@
 #include <string>
 #include <iostream>
 #include <fstream>
+#include <sstream>
 #include <math.h>
 #include <vector>
 #include <cstdlib>
@@ -14,12 +15,12 @@ class TwoMeansTreeNode {
 	private:
 		TwoMeansTreeNode *left;
 		TwoMeansTreeNode *right;
-		int depth;
+		unsigned int depth;
 		double means[2];
 		vector< double > points;
 
 	public: 
-		TwoMeansTreeNode(vector<double> pts, int d, bool isLeafNode){
+		TwoMeansTreeNode(vector<double> pts, unsigned int d, bool isLeafNode){
 			if(isLeafNode){
 			    //set points at this node
 			    for(int i=0; i<pts.size();i++){
@@ -49,7 +50,7 @@ class TwoMeansTreeNode {
 			this->left = t2;
 		}
 	
-		int getDepth(){
+		unsigned int getDepth(){
 			return this->depth;
 		}
 		
@@ -235,7 +236,7 @@ void splitDataBy2Means(vector<double> X, vector<double> mus, bool *closerToMu1){
 	}
 }
 
-TwoMeansTreeNode* buildTwoMeansTree(vector<double> X, int d, int depth_threshold){
+TwoMeansTreeNode* buildTwoMeansTree(vector<double> X, unsigned int d, unsigned int depth_threshold){
 	int npts = X.size();
 	// split criteria
 	//if(npts <= 4){ //stop splitting when number of points in a node is low
@@ -283,9 +284,8 @@ int numPoints(TwoMeansTreeNode* tree){
 	}
 }
 
-vector< TwoMeansTreeNode* > buildRandomForest(vector<double> X, int numTrees){
+vector< TwoMeansTreeNode* > buildRandomForest(vector<double> X, int numTrees, unsigned int depthThreshold){
 	
-	int depthThreshold=8;
 	vector< TwoMeansTreeNode* > forest;
 	for(int i=0; i<numTrees; i++){
 		TwoMeansTreeNode* tree = buildTwoMeansTree(X, 0, depthThreshold);
@@ -298,15 +298,24 @@ vector< TwoMeansTreeNode* > buildRandomForest(vector<double> X, int numTrees){
 bool appearInSameLeafNode(double a, double b, TwoMeansTreeNode* tree){
 	if(tree->getLeftChild() == NULL && tree->getRightChild()==NULL){
 		vector<double> pointsInLeafNode = tree->getPoints();
-		return ( find(pointsInLeafNode.begin(), pointsInLeafNode.end(),a)!=pointsInLeafNode.end() && find(pointsInLeafNode.begin(), pointsInLeafNode.end(), b)!=pointsInLeafNode.end() );
+		return ( ( find(pointsInLeafNode.begin(), pointsInLeafNode.end(),a)!=pointsInLeafNode.end() ) && ( find(pointsInLeafNode.begin(), pointsInLeafNode.end(), b)!=pointsInLeafNode.end() ) );
 	} else {
-		return (appearInSameLeafNode(a,b,tree->getLeftChild()) || appearInSameLeafNode(a,b,tree->getRightChild()) );
+		return (appearInSameLeafNode( a,b,tree->getLeftChild() ) || appearInSameLeafNode( a,b,tree->getRightChild() ) );
 	}
 }
 
 // test driver function
-int main(){
-	cout << "testing..."<<endl;
+int main(int argc, char **argv){
+	unsigned int treedepth;
+	
+	if(argc < 3)
+	{
+		printf("Usage : ./testTwoMeansForest <number of dimensions> <tree depth>\n");
+		exit(-1);
+	}
+	
+	treedepth = (unsigned int)atoi(argv[2]);
+	
 	// small simple data test
 	/*
 	int Xarr[] = {1, 5, 7.8, 10.2, 15, 19, 21, 199, 200, 201, 202, 203, 204, 205}; 
@@ -317,21 +326,23 @@ int main(){
 	*/
 		
 	vector<double> Y;
-	int datasetsize=500;
+	int datasetsize=100;
 	for(int i=0; i<datasetsize; i++){
 		Y.push_back((double) rand() / RAND_MAX);
 	}
-	TwoMeansTreeNode* tree2 = buildTwoMeansTree(Y, 0, 8);
+	TwoMeansTreeNode* tree2 = buildTwoMeansTree(Y, 0, treedepth);
 	cout << "Tree 2: (random numbers between 0 and 1)"<< endl;
 	printTree(tree2);	
 	cout << "Tree 2: number of points in tree = "<<numPoints(tree2)<<endl;
 	int ntrees = 100;
-	vector< TwoMeansTreeNode* > random2meansforest = buildRandomForest(Y,ntrees);
+	vector< TwoMeansTreeNode* > random2meansforest = buildRandomForest(Y,ntrees, treedepth);
 	
 	// print out pairwise estimated similarities as well as true distances
 	double estimated_sim_ij=0.0;
+	stringstream ofss;
+	ofss<<"truedist_vs_estimatedsim_"<<datasetsize<<"_pts.txt";
 	ofstream true_est_comparefile;
-	true_est_comparefile.open("truedist_vs_estimatedsim.txt");
+	true_est_comparefile.open(ofss.str().c_str());
 	double true_dist_ij;
 	for(int i=0; i<datasetsize; i++){
 		for(int j=0; j<datasetsize; j++){
