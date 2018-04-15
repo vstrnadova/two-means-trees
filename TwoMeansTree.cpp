@@ -8,6 +8,7 @@
 #include <assert.h>
 #include <algorithm> //sort
 #include <limits>
+#include <numeric> //accumulate
 
 using namespace std;
 
@@ -16,11 +17,13 @@ class TwoMeansTreeNode {
 		TwoMeansTreeNode *left;
 		TwoMeansTreeNode *right;
 		unsigned int depth;
-		double means[2];
-		vector< double > points;
+		vector< vector<double> > means;
+		//double means[2];
+		vector< vector<double> > points;
+		int ndimensions;
 
 	public: 
-		TwoMeansTreeNode(vector<double> pts, unsigned int d, bool isLeafNode){
+		TwoMeansTreeNode(vector< vector<double> > pts, unsigned int d, bool isLeafNode){
 			if(isLeafNode){
 			    //set points at this node
 			    for(int i=0; i<pts.size();i++){
@@ -29,8 +32,9 @@ class TwoMeansTreeNode {
 			    //cout << "added points to leaf node"<<endl;
 			} else {
 				assert(pts.size() == 2);
-				means[0] = pts[0];
-				means[1] = pts[1];
+				assert((pts[0]).size() == (pts[1]).size());
+				means.push_back(pts[0]);
+				means.push_back(pts[1]);
 			}
 			left = NULL;
 			right = NULL;
@@ -62,15 +66,12 @@ class TwoMeansTreeNode {
 			return this->right;
 		}
 	
-		vector<double> getPoints(){
+		vector< vector<double> > getPoints(){
 			return this->points;
 		}
 		
-		vector<double> getMeans(){
-			vector<double> mus;
-			mus.push_back(this->means[0]);
-			mus.push_back(this->means[1]);
-			return mus;
+		vector< vector<double> > getMeans(){
+			return this->means;
 		}
 		
 };
@@ -78,27 +79,56 @@ class TwoMeansTreeNode {
 void printTree(TwoMeansTreeNode *tree){
 	assert( (tree->getLeftChild()== NULL && tree->getRightChild() == NULL ) || (tree->getLeftChild()!= NULL && tree->getRightChild() != NULL));
 	if( tree->getLeftChild() == NULL && tree->getRightChild()==NULL ){
-		vector<double> pts = tree->getPoints();
-		cout << "Leaf node at depth "<< tree->getDepth() <<" points:\n "<<endl;
+		vector< vector<double> > pts = tree->getPoints();
+		cout << "Leaf node points at depth "<< tree->getDepth() <<": <";
 		for(int i=0; i<pts.size(); i++){
-			cout << ", " << pts[i];
+			cout << "(";
+			for(int j=0; j<(pts[i]).size(); j++){
+				cout << ", " << (pts[i])[j];
+			}
+			cout <<"), ";
 		}
-		cout <<endl;
+		cout <<">"<<endl;
 	} else {
-		vector<double> means = tree->getMeans();
+		vector< vector<double> > means = tree->getMeans();
 		//cout <<"Internal node at depth " << tree->getDepth() << " means: "<<means[0]<<", "<<means[1]<<endl;
+		unsigned int depthcurrent = tree->getDepth();
+		//if(depthcurrent==0){
+			cout << depthcurrent<<"--";
+		//}
 		printTree(tree->getLeftChild());
+		cout <<"--and---";
 		printTree(tree->getRightChild());		
 	}
 	return;
 }
 
+double euclideanDistance(vector< double > a, vector< double > b){
+	assert(a.size() == b.size());
+	vector<double> sqdists(a.size(), 0.0);
+	for(int i=0; i<a.size(); i++){
+		sqdists[i] = (a[i]-b[i])*(a[i]-b[i]);
+	}
+	double dist = sqrt(accumulate(sqdists.begin(), sqdists.end(), 0.0));
+	return dist;
+}
+
 void printLeafNodes(TwoMeansTreeNode *tree){	
 	if( tree->getLeftChild() == NULL && tree->getRightChild()==NULL ){
-		vector<double> pts = tree->getPoints();
+		vector< vector<double> > pts = tree->getPoints();
 		cout << "Leaf node points:\n "<<endl;
 		for(int i=0; i<pts.size(); i++){
-			cout << ", " << pts[i] ;
+			cout << "(";
+			for(int j=0; j<(pts[i]).size(); j++){
+				if(j<(pts[i]).size()-1){
+					cout << pts[i][j] <<",";
+				} else {
+					cout << pts[i][j] <<")";
+				}
+			}
+			if(i<pts.size()-1){
+				cout << ", ";		
+			}
 		}
 		cout <<endl;
 	} else {
@@ -172,14 +202,18 @@ vector<double> twoMeansOneD(vector<double> X){
 	return means;
 }
 
-vector<double> twomeans(vector<double> X){	
+vector< vector<double> > twomeans(vector< vector<double> > X){	
 	int npts = X.size();
+	int ndims=0;
+	if(!X.empty()){
+		ndims = X[0].size();
+	} 
 	bool isCloserToMean1[npts];	
 	//choose starting means at random from the points in the data set
 	int idx1 = rand() % npts;
 	int idx2 = rand() % npts;	
-	double mean1 = X[idx1];
-	double mean2 = X[idx2];
+	vector<double> mean1 = X[idx1];
+	vector<double> mean2 = X[idx2];
 	//keep track of how many swaps happened 
 	// between this iteration and the last
 	int nSwaps = npts;
@@ -189,8 +223,8 @@ vector<double> twomeans(vector<double> X){
 		nSwaps = 0;
 		// assign points to closest mean
 		for(int i=0; i<npts; i++){
-			double dist1 = fabs(X[i] - mean1);
-			double dist2 = fabs(X[i] - mean2);
+			double dist1 = euclideanDistance(X[i], mean1);
+			double dist2 = euclideanDistance(X[i], mean2);
 			if(dist1<dist2){
 				if(isCloserToMean1[i] == false) nSwaps++;
 				isCloserToMean1[i] = true;
@@ -200,34 +234,48 @@ vector<double> twomeans(vector<double> X){
 			}
 		}
 		// re-compute means
-		mean1 = 0.0;
-		mean2 = 0.0;
+		mean1.clear();
+		mean1.resize(ndims, 0.0);
+		mean2.clear();
+		mean2.resize(ndims, 0.0);
 		double npts1 = 0.0, npts2 = 0.0;
 		for(int i=0; i<npts; i++){
 			if(isCloserToMean1[i]){ 
-				mean1+=X[i];
+				for(int dim=0; dim<ndims; dim++){
+					mean1[dim] += (X[i])[dim];
+				}
 				npts1++;
 			} else { 
-				mean2 += X[i];
+				for(int dim=0; dim<ndims; dim++){
+					mean2[dim] += (X[i])[dim];
+				}
 				npts2++;
 			}
 		}
-		mean1 = mean1/npts1;
-		mean2 = mean2/npts2;
+		for(int dim=0; dim<ndims; dim++){
+			mean1[dim] = mean1[dim]/npts;
+		}
+		for(int dim=0; dim<ndims; dim++){
+			mean2[dim] = mean2[dim]/npts;
+		}
 	}
-	vector<double> means;
+	vector< vector<double> > means;
 	means.push_back(mean1);
 	means.push_back(mean2);
 	//cout << "found means "<<mean1<<" and "<<mean2<<endl;
 	return means;
 }
 	
-void splitDataBy2Means(vector<double> X, vector<double> mus, bool *closerToMu1){
+void splitDataBy2Means(vector<vector<double> > X, vector< vector<double> > mus, bool *closerToMu1){
 	int n = X.size();
+	int ndims=0;
+	if(!X.empty()){
+		ndims = X[0].size();
+	}
 	double d_mu1, d_mu2;
 	for(int i=0; i<n; i++){
-		d_mu1 = fabs(X[i] - mus[0]); 
-		d_mu2 = fabs(X[i] - mus[1]);
+		d_mu1 = euclideanDistance(X[i] , mus[0]); 
+		d_mu2 = euclideanDistance(X[i] , mus[1]);
 		if(d_mu1 < d_mu2){
 			closerToMu1[i] = true;	
 		} else { // in this case d_mu1 >= d_mu2
@@ -236,7 +284,7 @@ void splitDataBy2Means(vector<double> X, vector<double> mus, bool *closerToMu1){
 	}
 }
 
-TwoMeansTreeNode* buildTwoMeansTree(vector<double> X, unsigned int d, unsigned int depth_threshold){
+TwoMeansTreeNode* buildTwoMeansTree(vector< vector<double> > X, unsigned int d, unsigned int depth_threshold){
 	int npts = X.size();
 	// split criteria
 	//if(npts <= 4){ //stop splitting when number of points in a node is low
@@ -245,11 +293,11 @@ TwoMeansTreeNode* buildTwoMeansTree(vector<double> X, unsigned int d, unsigned i
 		return leafnode;
 	}
 	bool closertoMu1[npts];
-	vector<double> means = twomeans(X);//twoMeansOneD(X);
+	vector< vector<double> > means = twomeans(X);//twoMeansOneD(X);
  	splitDataBy2Means(X, means, closertoMu1);
 	//cout << "split data of size "<<npts<<"by 2-means."<<endl;	
-	vector<double> leftsplit;
-	vector<double> rightsplit;
+	vector< vector<double> > leftsplit;
+	vector< vector<double> > rightsplit;
 	int nleft=0, nright=0;
 	for(int i=0; i<X.size(); i++){
 		if(closertoMu1[i]){
@@ -277,14 +325,14 @@ TwoMeansTreeNode* buildTwoMeansTree(vector<double> X, unsigned int d, unsigned i
 */
 int numPoints(TwoMeansTreeNode* tree){
 	if(tree->getLeftChild() == NULL && tree->getRightChild()==NULL){
-		vector<double> leafpoints = tree->getPoints();
+		vector< vector<double> > leafpoints = tree->getPoints();
 		return leafpoints.size();
 	} else {
 		return (numPoints(tree->getLeftChild()) + numPoints(tree->getRightChild()));
 	}
 }
 
-vector< TwoMeansTreeNode* > buildRandomForest(vector<double> X, int numTrees, unsigned int depthThreshold){
+vector< TwoMeansTreeNode* > buildRandomForest(vector< vector<double> > X, int numTrees, unsigned int depthThreshold){
 	
 	vector< TwoMeansTreeNode* > forest;
 	for(int i=0; i<numTrees; i++){
@@ -295,9 +343,9 @@ vector< TwoMeansTreeNode* > buildRandomForest(vector<double> X, int numTrees, un
 	return forest;
 }
 	
-bool appearInSameLeafNode(double a, double b, TwoMeansTreeNode* tree){
+bool appearInSameLeafNode(vector<double> a, vector<double> b, TwoMeansTreeNode* tree){
 	if(tree->getLeftChild() == NULL && tree->getRightChild()==NULL){
-		vector<double> pointsInLeafNode = tree->getPoints();
+		vector< vector<double> > pointsInLeafNode = tree->getPoints();
 		return ( ( find(pointsInLeafNode.begin(), pointsInLeafNode.end(),a)!=pointsInLeafNode.end() ) && ( find(pointsInLeafNode.begin(), pointsInLeafNode.end(), b)!=pointsInLeafNode.end() ) );
 	} else {
 		return (appearInSameLeafNode( a,b,tree->getLeftChild() ) || appearInSameLeafNode( a,b,tree->getRightChild() ) );
@@ -308,14 +356,15 @@ bool appearInSameLeafNode(double a, double b, TwoMeansTreeNode* tree){
 int main(int argc, char **argv){
 	unsigned int treedepth;
 	
-	if(argc < 3)
+	if(argc < 4)
 	{
-		printf("Usage : ./testTwoMeansForest <number of dimensions> <tree depth>\n");
+		printf("Usage : ./testTwoMeansForest <number of dimensions> <tree depth> <data set size (number of points)>\n");
 		exit(-1);
 	}
 	
 	treedepth = (unsigned int)atoi(argv[2]);
-	
+	int datasetsize = atoi(argv[3]);
+
 	// small simple data test
 	/*
 	int Xarr[] = {1, 5, 7.8, 10.2, 15, 19, 21, 199, 200, 201, 202, 203, 204, 205}; 
@@ -325,10 +374,15 @@ int main(int argc, char **argv){
 	printTree(tree);
 	*/
 		
-	vector<double> Y;
-	int datasetsize=100;
+	vector< vector<double> > Y;
+	int ndims = atoi(argv[1]);
 	for(int i=0; i<datasetsize; i++){
-		Y.push_back((double) rand() / RAND_MAX);
+		vector<double> temp;
+		for(int j=0; j<ndims; j++){
+			temp.push_back((double) rand() / RAND_MAX);
+		}
+		Y.push_back(temp);
+		temp.clear();
 	}
 	TwoMeansTreeNode* tree2 = buildTwoMeansTree(Y, 0, treedepth);
 	cout << "Tree 2: (random numbers between 0 and 1)"<< endl;
@@ -340,7 +394,8 @@ int main(int argc, char **argv){
 	// print out pairwise estimated similarities as well as true distances
 	double estimated_sim_ij=0.0;
 	stringstream ofss;
-	ofss<<"truedist_vs_estimatedsim_"<<datasetsize<<"_pts.txt";
+	ofss<<"truedist_vs_estimatedsim_"<<datasetsize<<"_pts"
+		<<ndims<<"dimensions_depth"<<treedepth<<".txt";
 	ofstream true_est_comparefile;
 	true_est_comparefile.open(ofss.str().c_str());
 	double true_dist_ij;
@@ -356,12 +411,16 @@ int main(int argc, char **argv){
 				}
 			}
 			estimated_sim_ij /= (double) ntrees;
-			true_dist_ij = fabs(Y[i]-Y[j]);
+			true_dist_ij = euclideanDistance(Y[i],Y[j]);
 			true_est_comparefile << true_dist_ij
 				<<"\t"<<estimated_sim_ij
 				<<endl;
 		}
-		cout <<"finished printing similarities and true distances for point "<<i<<": "<<Y[i]<<endl;
+		cout <<"finished printing similarities and true distances for point "<<i<<": (";
+		for(int d=0; d<ndims; d++){
+			cout<<Y[i][d]<<",";
+		}
+		cout <<")";
 	}
 	true_est_comparefile.close();
 
