@@ -91,13 +91,14 @@ void printTree(TwoMeansTreeNode *tree){
 		cout <<">"<<endl;
 	} else {
 		vector< vector<double> > means = tree->getMeans();
-		//cout <<"Internal node at depth " << tree->getDepth() << " means: "<<means[0]<<", "<<means[1]<<endl;
+		cout <<"Internal node at depth " << tree->getDepth() << " means: ";
+			//<<means[0]<<", "<<means[1]<<endl;
 		unsigned int depthcurrent = tree->getDepth();
-		//if(depthcurrent==0){
+		if(depthcurrent==0){
 			cout << depthcurrent<<"--";
-		//}
+		}
 		printTree(tree->getLeftChild());
-		cout <<"--and---";
+		//cout <<"--and---";
 		printTree(tree->getRightChild());		
 	}
 	return;
@@ -206,7 +207,7 @@ vector< vector<double> > twomeans(vector< vector<double> > X){
 	int npts = X.size();
 	int ndims=0;
 	if(!X.empty()){
-		ndims = X[0].size();
+		ndims = (X[0]).size();
 	} 
 	bool isCloserToMean1[npts];	
 	//choose starting means at random from the points in the data set
@@ -217,10 +218,11 @@ vector< vector<double> > twomeans(vector< vector<double> > X){
 	//keep track of how many swaps happened 
 	// between this iteration and the last
 	int nSwaps = npts;
-
-	while (nSwaps>0){ //iterate until no points are re-assigned
+	int iters=0, maxiterations=1000;
+	while (nSwaps>0 || iters>=maxiterations){ //iterate until no points are re-assigned
 		//iteratively update means and re-assign points
 		nSwaps = 0;
+		iters++;
 		// assign points to closest mean
 		for(int i=0; i<npts; i++){
 			double dist1 = euclideanDistance(X[i], mean1);
@@ -253,10 +255,10 @@ vector< vector<double> > twomeans(vector< vector<double> > X){
 			}
 		}
 		for(int dim=0; dim<ndims; dim++){
-			mean1[dim] = mean1[dim]/npts;
+			mean1[dim] = mean1[dim]/npts1;
 		}
 		for(int dim=0; dim<ndims; dim++){
-			mean2[dim] = mean2[dim]/npts;
+			mean2[dim] = mean2[dim]/npts2;
 		}
 	}
 	vector< vector<double> > means;
@@ -344,9 +346,65 @@ vector< TwoMeansTreeNode* > buildRandomForest(vector< vector<double> > X, int nu
 }
 	
 bool appearInSameLeafNode(vector<double> a, vector<double> b, TwoMeansTreeNode* tree){
+
+	bool foundadim[a.size()];
+	bool foundbdim[b.size()];
+	bool fa, fb, founda, foundb, foundaAndb=false;
 	if(tree->getLeftChild() == NULL && tree->getRightChild()==NULL){
+		/*cout << " a\t\tb "<<endl;
+		for(int i=0; i<a.size(); i++){
+			cout <<a[i]<<"\t\t"<<b[i]<<endl;
+		}*/
+		cout <<endl;
 		vector< vector<double> > pointsInLeafNode = tree->getPoints();
-		return ( ( find(pointsInLeafNode.begin(), pointsInLeafNode.end(),a)!=pointsInLeafNode.end() ) && ( find(pointsInLeafNode.begin(), pointsInLeafNode.end(), b)!=pointsInLeafNode.end() ) );
+		//cout << "leaf points: "<<endl;
+		for(int i=0; i<pointsInLeafNode.size(); i++){
+			//cout <<" point "<<i<<": (";
+			for(int j=0; j<a.size(); j++){
+				foundadim[j] = false;
+				foundbdim[j] = false;
+			}
+			fa=true; 
+			fb=true;
+			for(int j=0; j<(pointsInLeafNode[i]).size(); j++){
+				//cout <<(pointsInLeafNode[i])[j]<<", ";
+				if( (pointsInLeafNode[i])[j] == a[j] ){
+					foundadim[j] = true;	
+				} else {
+					foundadim[j] = false;
+				}
+				if( (pointsInLeafNode[i])[j] == b[j] ){
+					foundbdim[j] = true;
+				} else {
+					foundbdim[j] = false;
+				}
+			}
+			//cout <<"), ";
+			 
+			for(int j=0; j<a.size(); j++){
+				if(!foundadim[j]) fa=false;
+				if(!foundbdim[j]) fb=false;
+			}
+			if(fa && fb){
+				foundaAndb=true;
+			} else if(fa){
+				//cout << "found a"<<endl;
+				founda=true;
+			} else if(fb){
+				foundb=true;
+				//cout << "found b"<<endl;
+			}
+		}
+		cout <<endl;
+		/*if(founda){
+			cout<<"found point a"<<endl;
+		}
+		if(foundb){
+			cout<<"found point b"<<endl;
+		}
+		if( founda && foundb ) cout << "found points a and b"<<endl;
+		*/
+		return ( founda && foundb );
 	} else {
 		return (appearInSameLeafNode( a,b,tree->getLeftChild() ) || appearInSameLeafNode( a,b,tree->getRightChild() ) );
 	}
@@ -416,11 +474,11 @@ int main(int argc, char **argv){
 				<<"\t"<<estimated_sim_ij
 				<<endl;
 		}
-		cout <<"finished printing similarities and true distances for point "<<i<<": (";
+		/*cout <<"finished printing similarities and true distances for point "<<i<<": (";
 		for(int d=0; d<ndims; d++){
 			cout<<Y[i][d]<<",";
 		}
-		cout <<")";
+		cout <<")";*/
 	}
 	true_est_comparefile.close();
 
