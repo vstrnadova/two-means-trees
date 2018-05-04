@@ -98,7 +98,6 @@ void printTree(TwoMeansTreeNode *tree){
 			cout << depthcurrent<<"--";
 		}
 		printTree(tree->getLeftChild());
-		//cout <<"--and---";
 		printTree(tree->getRightChild());		
 	}
 	return;
@@ -355,7 +354,7 @@ bool appearInSameLeafNode(vector<double> a, vector<double> b, TwoMeansTreeNode* 
 		for(int i=0; i<a.size(); i++){
 			cout <<a[i]<<"\t\t"<<b[i]<<endl;
 		}*/
-		cout <<endl;
+		//cout <<endl;
 		vector< vector<double> > pointsInLeafNode = tree->getPoints();
 		//cout << "leaf points: "<<endl;
 		for(int i=0; i<pointsInLeafNode.size(); i++){
@@ -395,7 +394,7 @@ bool appearInSameLeafNode(vector<double> a, vector<double> b, TwoMeansTreeNode* 
 				//cout << "found b"<<endl;
 			}
 		}
-		cout <<endl;
+		//cout <<endl;
 		/*if(founda){
 			cout<<"found point a"<<endl;
 		}
@@ -414,12 +413,17 @@ bool appearInSameLeafNode(vector<double> a, vector<double> b, TwoMeansTreeNode* 
 int main(int argc, char **argv){
 	unsigned int treedepth;
 	
-	if(argc < 4)
+	if(argc < 4 || argc>5)
 	{
-		printf("Usage : ./testTwoMeansForest <number of dimensions> <tree depth> <data set size (number of points)>\n");
+		printf("Usage : ./testTwoMeansForest <number of dimensions> <tree depth> <data set size (number of points)> [(optional) inputfile]\n");
 		exit(-1);
 	}
-	
+	bool readInData = false;
+	ifstream inFile;
+	if(argc == 5){
+		readInData = true;
+	}	
+
 	treedepth = (unsigned int)atoi(argv[2]);
 	int datasetsize = atoi(argv[3]);
 
@@ -434,13 +438,33 @@ int main(int argc, char **argv){
 		
 	vector< vector<double> > Y;
 	int ndims = atoi(argv[1]);
-	for(int i=0; i<datasetsize; i++){
+	if(readInData){
+		inFile.open(argv[4]);
+		if (!inFile) {
+        		cout << "Unable to open file";
+        		exit(1); // terminate with error
+    		}
+		cout << "reading in data..."<<endl;
+		double x;
 		vector<double> temp;
-		for(int j=0; j<ndims; j++){
-			temp.push_back((double) rand() / RAND_MAX);
+		while(inFile >> x){	
+			temp.push_back(x);
+			if(temp.size()==ndims){
+				Y.push_back(temp);
+				temp.clear();
+			}
 		}
-		Y.push_back(temp);
-		temp.clear();
+		inFile.close();
+	} else {
+		cout << "generating random data"<<endl;
+		for(int i=0; i<datasetsize; i++){
+		vector<double> temp;
+			for(int j=0; j<ndims; j++){
+				temp.push_back((double) rand() / RAND_MAX);
+			}
+			Y.push_back(temp);
+			temp.clear();
+		}
 	}
 	TwoMeansTreeNode* tree2 = buildTwoMeansTree(Y, 0, treedepth);
 	cout << "Tree 2: (random numbers between 0 and 1)"<< endl;
@@ -452,8 +476,13 @@ int main(int argc, char **argv){
 	// print out pairwise estimated similarities as well as true distances
 	double estimated_sim_ij=0.0;
 	stringstream ofss;
-	ofss<<"truedist_vs_estimatedsim_"<<datasetsize<<"_pts"
+	if(readInData){
+		ofss<<"truedist_vs_estimatedsim_"<<datasetsize<<"_pts"
+		<<ndims<<"dimensions_depth"<<treedepth<<argv[4];
+	} else {
+		ofss<<"truedist_vs_estimatedsim_"<<datasetsize<<"_pts"
 		<<ndims<<"dimensions_depth"<<treedepth<<".txt";
+	}
 	ofstream true_est_comparefile;
 	true_est_comparefile.open(ofss.str().c_str());
 	double true_dist_ij;
@@ -481,25 +510,6 @@ int main(int argc, char **argv){
 		cout <<")";*/
 	}
 	true_est_comparefile.close();
-
-	/*	
-	vector<double> Z;
-	for(int i=0; i<5000; i++){
-		Z.push_back(i);	
-	}
-	TwoMeansTreeNode* tree3 = buildTwoMeansTree(Z, 0, 8);
-	cout << "Tree 3: "<<endl;
-	printTree(tree3);	
-	*/
-
-	/* normally distributed data */
-	/*vector<double> N;
-	for(int i=0; i<100; i++){
-		N.push_back(i);	
-	}
-	TwoMeansTreeNode* treeN = buildTwoMeansTree(N, 0, 8);
-	printTree(treeN);	
-	*/
 	
 	return 0;
 }
