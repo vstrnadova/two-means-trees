@@ -4,6 +4,7 @@
 #include <sstream>
 #include <math.h>
 #include <vector>
+#include <queue>
 #include <cstdlib>
 #include <assert.h>
 #include <algorithm> //sort
@@ -21,7 +22,7 @@ class TwoMeansTreeNode {
 		//double means[2];
 		vector< vector<double> > points;
 		int ndimensions;
-
+		bool leafNode;
 	public: 
 		TwoMeansTreeNode(vector< vector<double> > pts, unsigned int d, bool isLeafNode){
 			if(isLeafNode){
@@ -29,8 +30,10 @@ class TwoMeansTreeNode {
 			    for(int i=0; i<pts.size();i++){
 			    	points.push_back(pts[i]);
 			    } 
+			    leafNode = true;
 			    //cout << "added points to leaf node"<<endl;
 			} else {
+				leafNode = false;
 				assert(pts.size() == 2);
 				assert((pts[0]).size() == (pts[1]).size());
 				means.push_back(pts[0]);
@@ -74,7 +77,44 @@ class TwoMeansTreeNode {
 			return this->means;
 		}
 		
+		bool isLeafNode(){
+			return this->leafNode;
+		}
+		
 };
+
+void printLevelOrder(TwoMeansTreeNode *tnode)
+{
+    // Base Case
+    if (tnode == NULL)  return;
+ 
+    // Create an empty queue for level order tarversal
+    queue<TwoMeansTreeNode *> q;
+ 
+    // Enqueue Root and initialize height
+    q.push(tnode);
+ 
+    while (q.empty() == false)
+    {
+        TwoMeansTreeNode *node = q.front();
+        if(node->isLeafNode()){
+		cout << " [num. pts ="<< (node->getPoints()).size() <<" ] ";
+        } else {
+		cout << " [mean1:  "<<(node->getMeans())[0][0]<<", ";
+		cout << "  mean2: "<<(node->getMeans())[0][1]<<"] ";
+	}
+	q.pop();
+ 
+        /* Enqueue left child */
+        if (node->getLeftChild() != NULL)
+            q.push(node->getLeftChild());
+ 
+        /*Enqueue right child */
+        if (node->getRightChild() != NULL)
+            q.push(node->getRightChild());
+    }
+}
+ 
 
 void printTree(TwoMeansTreeNode *tree){
 	assert( (tree->getLeftChild()== NULL && tree->getRightChild() == NULL ) || (tree->getLeftChild()!= NULL && tree->getRightChild() != NULL));
@@ -468,7 +508,8 @@ int main(int argc, char **argv){
 	}
 	TwoMeansTreeNode* tree2 = buildTwoMeansTree(Y, 0, treedepth);
 	cout << "Tree 2: (random numbers between 0 and 1)"<< endl;
-	printTree(tree2);	
+	printLevelOrder(tree2);
+        //printTree(tree2);	
 	cout << "Tree 2: number of points in tree = "<<numPoints(tree2)<<endl;
 	int ntrees = 100;
 	vector< TwoMeansTreeNode* > random2meansforest = buildRandomForest(Y,ntrees, treedepth);
