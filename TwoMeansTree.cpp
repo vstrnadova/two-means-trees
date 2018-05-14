@@ -427,12 +427,12 @@ TwoMeansTreeNode * buildTwoMeansTree(vector< vector<double> > X, unsigned int d,
 	}
 	
 	/* shuffle the dimensions to get a random sample */
-	//random_shuffle(dimensions.begin(), dimensions.end());
+	random_shuffle(dimensions.begin(), dimensions.end());
 	
 	/* subset_dims_size is the number of dimensions to test 
 	*	with one-dimensional k-means
 	*/
-	int subset_dims_size = ndimensions;//(int) sqrt(ndimensions);
+	int subset_dims_size = (int) sqrt(ndimensions);
 	//cout << "Dimension subset size = "<<subset_dims_size<<endl;
 	for(int j=0; j<subset_dims_size; j++){
 		//cout << "adding dimension "<<dimensions[j]<<endl;
@@ -534,9 +534,8 @@ vector< TwoMeansTreeNode * > buildRandomForest(vector< vector<double> > X, int n
 	vector< TwoMeansTreeNode* > forest;
 	for(int i=0; i<numTrees; i++){
 		/* bagging: get a random sample, with replacement, from X */
-		//vector< vector<double> > sampleXs = getRandomSample(X, X.size());
-		//TwoMeansTreeNode * tree = buildTwoMeansTree(sampleXs, 0, depthThreshold);
-		TwoMeansTreeNode * tree = buildTwoMeansTree(X, 0, depthThreshold);
+		vector< vector<double> > sampleXs = getRandomSample(X, X.size());
+		TwoMeansTreeNode * tree = buildTwoMeansTree(sampleXs, 0, depthThreshold);
 		forest.push_back(tree);
 		cout << "finished tree "<<i<<endl;
 	}
