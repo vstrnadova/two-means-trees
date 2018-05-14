@@ -18,7 +18,7 @@ class TwoMeansTreeNode {
 		TwoMeansTreeNode *left;
 		TwoMeansTreeNode *right;
 		unsigned int depth;
-		vector< vector<double> > means;
+		vector< double > means;
 		//double means[2];
 		vector< vector<double> > points;
 		int ndimensions;
@@ -40,8 +40,8 @@ class TwoMeansTreeNode {
 					cout << "(pts[1]).size() = "<<(pts[1]).size()<<endl;
 				}
 				assert((pts[0]).size() == (pts[1]).size());
-				means.push_back(pts[0]);
-				means.push_back(pts[1]);
+				means.push_back(pts[0][0]);
+				means.push_back(pts[1][0]);
 			}
 			left = NULL;
 			right = NULL;
@@ -77,7 +77,7 @@ class TwoMeansTreeNode {
 			return this->points;
 		}
 		
-		vector< vector<double> > getMeans(){
+		vector<double> getMeans(){
 			return this->means;
 		}
 		
@@ -104,8 +104,8 @@ void printLevelOrder(TwoMeansTreeNode *tnode)
         if(node->isLeafNode()){
 		cout << " [num. pts ="<< (node->getPoints()).size() <<" ] ";
         } else {
-		cout << " [mean1[0]:  "<<(node->getMeans())[0][0]<<", ";
-		cout << "  mean2[0]: "<<(node->getMeans())[0][1]<<"] ";
+		cout << " [mean1[0]:  "<<(node->getMeans())[0]<<", ";
+		cout << "  mean2[0]: "<<(node->getMeans())[1]<<"] ";
 	}
 	q.pop();
  
@@ -135,10 +135,10 @@ void printTree(TwoMeansTreeNode *tree){
 		}
 		cout <<">"<<endl;
 	} else {
-		vector< vector<double> > means = tree->getMeans();
+		vector< double > means = tree->getMeans();
 		cout <<"Internal node "//<< tree->getID() 
-			<<" at depth " << tree->getDepth() << " means: ";
-			//<<means[0]<<", "<<means[1]<<endl;
+			<<" at depth " << tree->getDepth() << " means: "
+			<<means[0]<<", "<<means[1]<<endl;
 		unsigned int depthcurrent = tree->getDepth();
 		if(depthcurrent==0){
 			cout << depthcurrent<<"--";
@@ -195,67 +195,61 @@ void printLeafNodes(TwoMeansTreeNode *tree){
  */
 pair< double, vector<double> > twoMeansOneD(vector<double> X){
 	int npts = X.size();
-	
+ 	/* process points in sorted order */	
 	sort(X.begin(), X.end());
 	bool isCloserToMean1[npts];
 	vector<double> means;
 	vector<double>::iterator it=X.begin();
 	//initialize the two means
 	double mean1=0.0, mean2=0.0, sum1=0.0, sum2=0.0;
-	//double mean1=X.begin(), mean2=0.0, sum1=X.begin(), sum2=0.0;	
 	vector<double>::iterator it2 = X.begin();
 	while(it2<X.end()){
 		sum2 += *it2;
 		it2++;
 	}
-	
-	int seenpts=0, nSwaps=0;
+	int seenpts=0;
 	double sumsqdists=0.0, minsumsqdists=numeric_limits<double>::max();
 	while(seenpts<(npts-1)){
-		nSwaps=0;
 		it++;
 		seenpts++;
-		// re-compute means
+		/* adjust sums */
 		sum1+=*it;
 		sum2-=*it;
+		/* adjust means */
 		mean1 = sum1/(double) seenpts;
 		mean2 = sum2/(double) (npts-seenpts);
-		//cout << "iteration "<<seenpts<<": means found: mean1="<<mean1<<", mean2="<<mean2<<endl;
-		//cout << " sum1="<<sum1<<", sum2="<<sum2<<endl;	
+		cout << "iteration "<<seenpts<<": means found: mean1="<<mean1<<", mean2="<<mean2<<endl;
+		cout << " sum1="<<sum1<<", sum2="<<sum2<<endl;	
 		
-		/* assign points to closest mean */
+	
+		/* assign points to closest mean and update sumsqdists */
+		sumsqdists=0.0;
 		for(int i=0; i<npts; i++){
 			double dist1 = fabs(X[i] - mean1);
 			double dist2 = fabs(X[i] - mean2);
 			if(dist1<dist2){
+				sumsqdists += fabs(X[i]-mean1)*fabs(X[i]-mean1);
 				isCloserToMean1[i] = true;
 			} else {
+			   	sumsqdists += fabs(X[i]-mean2)*fabs(X[i]-mean2);
 				isCloserToMean1[i] = false;	
 			}
 		}
-		//cout<<"iteration "<< seenpts <<": nSwaps="<<nSwaps<<endl;
 	
-		// store means if sum of squared distances
-		// to means yields best split
-		sumsqdists=0.0;
-		for(int i=0; i<npts; i++){
-			if(isCloserToMean1[i]){
-			   sumsqdists += fabs(X[i]-mean1)*fabs(X[i]-mean1);
-			} else {
-			   sumsqdists += fabs(X[i]-mean2)*fabs(X[i]-mean2);
-			}
-		}
-		
+		/* store means if sum of squared distances
+		* to means yields best split
+		*/
 		if(sumsqdists<minsumsqdists){
 			minsumsqdists = sumsqdists;
 			means.clear();
 			means.push_back(mean1);
 			means.push_back(mean2);
-			//cout << "min sum sq. dists = "<<minsumsqdists;
+			cout << "min sum sq. dists = "<<minsumsqdists<<endl;
 			//cout << ", mean1 = "<<mean1<<", mean2 = "<<mean2<<endl;
 		}
 	}	
-	//cout << "returning means" <<means[0]<<" and "<<means[1]<<endl;
+	if(means.size()>1)
+	cout << "twoMeansOneD: returning means" <<means[0]<<" and "<<means[1]<<endl;
 	return make_pair(minsumsqdists, means);
 }
 
@@ -376,6 +370,8 @@ int chooseBestSplit(vector< vector<double> > Xs, vector<int> splitting_dim_candi
 			/* split points by 2-means in one dimension */	
 			pair< double, vector<double> > meanspair = twoMeansOneD(projectedXs);//twomeans(X);
 			sumsqdists = meanspair.first;
+			cout << "chooseBestSplit: sumsqdists at dimension"
+				<<splitting_dim<<" = "<<sumsqdists<<endl;
 			if(sumsqdists < minsumsqdists){
 				minsumsqdists = sumsqdists;
 				bestSplitDim = splitting_dim;
@@ -383,8 +379,8 @@ int chooseBestSplit(vector< vector<double> > Xs, vector<int> splitting_dim_candi
 		}
 		projectedXs.clear();
 	}
-	//cout << "chooseBestSplit: best splitting dim = "<<bestSplitDim;
-	//cout <<", minsumsqdists = "<<minsumsqdists<<endl;
+	cout << "chooseBestSplit: best splitting dim = "<<bestSplitDim;
+	cout <<", minsumsqdists = "<<minsumsqdists<<endl;
 	return bestSplitDim;
 }
 
@@ -402,15 +398,16 @@ vector<double> projectOntoOneDim(vector< vector<double> > X, int splitdim){
 
 TwoMeansTreeNode * buildTwoMeansTree(vector< vector<double> > X, unsigned int d, unsigned int depth_threshold){
 	int npts = X.size();
+	int min_pts_in_leaf = 1;
 	//cout << "npts = "<<X.size()<<endl;
 	/* split criteria: stop splitting when number 
 	 *	of points in a node is low, or when
 	 * 	depth limit is met
 	*/
-	if(d>=depth_threshold || npts <=2){
+	if(d>=depth_threshold || npts <= min_pts_in_leaf){
 		//cout << "d>="<<depth_threshold<<" or "<<npts<<"<=2"<<endl;
 	}
-	if(d>=depth_threshold || npts <=2){
+	if(d>=depth_threshold || npts <= min_pts_in_leaf){
 		//cout << "creating new leaf node"<<endl;
 		TwoMeansTreeNode * leafnode = new TwoMeansTreeNode(X, d, true);
 		return leafnode;
@@ -418,7 +415,7 @@ TwoMeansTreeNode * buildTwoMeansTree(vector< vector<double> > X, unsigned int d,
 	
 	int ndimensions;
 	if(npts>0){
-		ndimensions = X[0].size(); //assumes X's are all same dimension
+		ndimensions = X[0].size(); //assumes X's are all same dimensionality
 	}
 	
 	/* Choose a random (with replacement) subset of fixed size
@@ -430,8 +427,12 @@ TwoMeansTreeNode * buildTwoMeansTree(vector< vector<double> > X, unsigned int d,
 	}
 	
 	/* shuffle the dimensions to get a random sample */
-	random_shuffle(dimensions.begin(), dimensions.end());
-	int subset_dims_size = (int) sqrt(ndimensions);
+	//random_shuffle(dimensions.begin(), dimensions.end());
+	
+	/* subset_dims_size is the number of dimensions to test 
+	*	with one-dimensional k-means
+	*/
+	int subset_dims_size = ndimensions;//(int) sqrt(ndimensions);
 	//cout << "Dimension subset size = "<<subset_dims_size<<endl;
 	for(int j=0; j<subset_dims_size; j++){
 		//cout << "adding dimension "<<dimensions[j]<<endl;
@@ -441,7 +442,7 @@ TwoMeansTreeNode * buildTwoMeansTree(vector< vector<double> > X, unsigned int d,
 	
 	/* choose best splitting dimension from among candidates */
 	int splitting_dim = chooseBestSplit(X, splitting_dim_candidates);
-	//cout << "splitting dimension = "<<splitting_dim<<endl;
+	cout << "splitting dimension at depth "<<d<<" = "<<splitting_dim<<endl;
 	
 	/* project onto splitting dimension */	
 	//cout << " projecting data onto splitting dimension "<<endl;
@@ -516,14 +517,14 @@ vector< vector<double> > getRandomSample(vector< vector<double> > X, int size){
 	for(int i=0; i<X.size(); i++){
 		Xs.push_back(X[i]);
 	}
-	random_shuffle(Xs.begin(), Xs.end());
 	for(int i=0; i<size; i++){
-		/*cout << "adding random point (";
-		for(int j=0; j<Xs[i].size(); j++){
-			cout << Xs[i][j]<<" ";
+		int randidx = rand()%size;
+		cout << "adding random point (";
+		for(int j=0; j<Xs[randidx].size(); j++){
+			cout << Xs[randidx][j]<<" ";
 		}
-		cout <<")"<<endl;*/
-		subsetXs.push_back(Xs[i]);
+		cout <<")"<<endl;
+		subsetXs.push_back(Xs[randidx]);
 	}
 	return subsetXs;
 }
@@ -531,11 +532,11 @@ vector< vector<double> > getRandomSample(vector< vector<double> > X, int size){
 vector< TwoMeansTreeNode * > buildRandomForest(vector< vector<double> > X, int numTrees, unsigned int depthThreshold){
 	
 	vector< TwoMeansTreeNode* > forest;
-	int samplesize = X.size()/2;//X.size();
-	cout << "sample size = "<<samplesize<<endl;
 	for(int i=0; i<numTrees; i++){
-		vector< vector<double> > subsetXs = getRandomSample(X, samplesize);
-		TwoMeansTreeNode * tree = buildTwoMeansTree(subsetXs, 0, depthThreshold);
+		/* bagging: get a random sample, with replacement, from X */
+		//vector< vector<double> > sampleXs = getRandomSample(X, X.size());
+		//TwoMeansTreeNode * tree = buildTwoMeansTree(sampleXs, 0, depthThreshold);
+		TwoMeansTreeNode * tree = buildTwoMeansTree(X, 0, depthThreshold);
 		forest.push_back(tree);
 		cout << "finished tree "<<i<<endl;
 	}
@@ -666,10 +667,10 @@ int main(int argc, char **argv){
 		}
 	}
 	//cout << " generating tree2..."<<endl;
-	//TwoMeansTreeNode * tree2 = buildTwoMeansTree(Y, 0, treedepth);
-	//cout << "Tree 2: "<< endl;
+	TwoMeansTreeNode * tree2 = buildTwoMeansTree(Y, 0, treedepth);
+	cout << "Tree 2: "<< endl;
 	//printLevelOrder(tree2);
-        //printTree(tree2);	
+        printTree(tree2);	
 	//cout << "Tree 2: number of points in tree = "<<numPoints(tree2)<<endl;
 
 	for(int i=0; i<Y.size(); i++){
@@ -682,7 +683,13 @@ int main(int argc, char **argv){
 		
 	int ntrees = 100;
 	vector< TwoMeansTreeNode* > random2meansforest = buildRandomForest(Y,ntrees, treedepth);
-	
+
+	/* print out each tree in the forest */
+	for(int i=0; i<random2meansforest.size(); i++){
+		TwoMeansTreeNode * tree = random2meansforest[i];
+		printTree(tree);
+	}
+		
 	// print out pairwise estimated similarities as well as true distances
 	double estimated_sim_ij=0.0;
 	stringstream ofss;
