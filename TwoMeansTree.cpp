@@ -18,7 +18,8 @@ class TwoMeansTreeNode {
 		TwoMeansTreeNode *left;
 		TwoMeansTreeNode *right;
 		unsigned int depth;
-		vector< double > means;
+		double midpoint;
+		//vector< double > means;
 		//double means[2];
 		vector< vector<double> > points;
 		int ndimensions;
@@ -34,14 +35,12 @@ class TwoMeansTreeNode {
 			    //cout << "added points to leaf node"<<endl;
 			} else {
 				leafNode = false;
-				assert(pts.size() == 2);
-				if((pts[0]).size() != (pts[1]).size()){
+				assert(pts.size() == 1);
+				if((pts[0]).size() != 1){
 					cout << "(pts[0]).size() = "<<(pts[0]).size()<<endl;
-					cout << "(pts[1]).size() = "<<(pts[1]).size()<<endl;
+					cout << "Internal node only stores one point, the midpoint. "<<endl;
 				}
-				assert((pts[0]).size() == (pts[1]).size());
-				means.push_back(pts[0][0]);
-				means.push_back(pts[1][0]);
+				midpoint = pts[0][0];
 			}
 			left = NULL;
 			right = NULL;
@@ -77,8 +76,8 @@ class TwoMeansTreeNode {
 			return this->points;
 		}
 		
-		vector<double> getMeans(){
-			return this->means;
+		double getMidpoint(){
+			return this->midpoint;
 		}
 		
 		bool isLeafNode(){
@@ -104,8 +103,7 @@ void printLevelOrder(TwoMeansTreeNode *tnode)
         if(node->isLeafNode()){
 		cout << " [num. pts ="<< (node->getPoints()).size() <<" ] ";
         } else {
-		cout << " [mean1[0]:  "<<(node->getMeans())[0]<<", ";
-		cout << "  mean2[0]: "<<(node->getMeans())[1]<<"] ";
+		cout << " [midpoint at depth "<<node->getDepth()<<":  "<<node->getMidpoint()<<"] ";
 	}
 	q.pop();
  
@@ -135,10 +133,9 @@ void printTree(TwoMeansTreeNode *tree){
 		}
 		cout <<">"<<endl;
 	} else {
-		vector< double > means = tree->getMeans();
 		cout <<"Internal node "//<< tree->getID() 
-			<<" at depth " << tree->getDepth() << " means: "
-			<<means[0]<<", "<<means[1]<<endl;
+			<<" at depth " << tree->getDepth() 
+			<<" midpoint: "<<tree->getMidpoint()<<endl;
 		unsigned int depthcurrent = tree->getDepth();
 		if(depthcurrent==0){
 			cout << depthcurrent<<"--";
@@ -193,11 +190,12 @@ void printLeafNodes(TwoMeansTreeNode *tree){
  *	in each cluster to their
  *	means, and the means themselves
  */
-pair< double, vector<double> > twoMeansOneD(vector<double> X){
+pair< double, double > twoMeansOneD(vector<double> X){
 	int npts = X.size();
  	/* process points in sorted order */	
 	sort(X.begin(), X.end());
 	bool isCloserToMean1[npts];
+	double midpoint;
 	vector<double> means;
 	vector<double>::iterator it=X.begin();
 	//initialize the two means
@@ -244,13 +242,14 @@ pair< double, vector<double> > twoMeansOneD(vector<double> X){
 			means.clear();
 			means.push_back(mean1);
 			means.push_back(mean2);
+			midpoint = (mean1+mean2)/2;
 			cout << "min sum sq. dists = "<<minsumsqdists<<endl;
 			//cout << ", mean1 = "<<mean1<<", mean2 = "<<mean2<<endl;
 		}
 	}	
 	if(means.size()>1)
-	cout << "twoMeansOneD: returning means" <<means[0]<<" and "<<means[1]<<endl;
-	return make_pair(minsumsqdists, means);
+	cout << "twoMeansOneD: returning midpont " <<midpoint<<endl;
+	return make_pair(minsumsqdists, midpoint);
 }
 
 vector< vector<double> > twomeans(vector< vector<double> > X){	
@@ -317,17 +316,14 @@ vector< vector<double> > twomeans(vector< vector<double> > X){
 	return means;
 }
 	
-void split_1D_DataBy2Means(vector<vector<double> > X, vector<double> mus, bool *closerToMu1, int splitting_dimension){
+void split_1D_DataBy2Means(vector<vector<double> > X, double midpt, bool *closerToMu1, int splitting_dimension){
 	int n = X.size();
 	int ndims=0;
 	if(!X.empty()){
 		ndims = X[0].size();
 	}
-	double d_mu1, d_mu2;
 	for(int i=0; i<n; i++){
-		d_mu1 = fabs(X[i][splitting_dimension] - mus[0]); 
-		d_mu2 = fabs(X[i][splitting_dimension] - mus[1]);
-		if(d_mu1 < d_mu2){
+		if(X[i][splitting_dimension] < midpt){
 			closerToMu1[i] = true;	
 		} else { // in this case d_mu1 >= d_mu2
 			closerToMu1[i] = false;
@@ -368,8 +364,8 @@ int chooseBestSplit(vector< vector<double> > Xs, vector<int> splitting_dim_candi
 			projectedXs.push_back(Xs[i][splitting_dim]);
 			
 			/* split points by 2-means in one dimension */	
-			pair< double, vector<double> > meanspair = twoMeansOneD(projectedXs);//twomeans(X);
-			sumsqdists = meanspair.first;
+			pair< double, double > sqdistsmidptpair = twoMeansOneD(projectedXs);//twomeans(X);
+			sumsqdists = sqdistsmidptpair.first;
 			cout << "chooseBestSplit: sumsqdists at dimension"
 				<<splitting_dim<<" = "<<sumsqdists<<endl;
 			if(sumsqdists < minsumsqdists){
@@ -450,22 +446,17 @@ TwoMeansTreeNode * buildTwoMeansTree(vector< vector<double> > X, unsigned int d,
 	
 	/* perform 2-means clustering of data in one dimension */
 	//cout << "computing means with 2-means"<<endl;
-	pair< double, vector<double> > meanspair = twoMeansOneD(projectedXs);//twomeans(X);
-	vector< double > means = meanspair.second;
-	vector< vector<double> > meansVec;
-	vector<double> mean1;
-	mean1.push_back(means[0]);
-	vector<double> mean2;
-	mean2.push_back(means[1]);
- 	//cout <<"mean1: "<<means[0]<<endl;
- 	//cout <<"mean2: "<<means[1]<<endl;
-	meansVec.push_back(mean1);
-	meansVec.push_back(mean2);
+	pair< double, double> meanspair = twoMeansOneD(projectedXs);//twomeans(X);
+	double midpt = meanspair.second;
+	vector< vector<double> > midptVec;
+	vector<double> midptV;
+	midptV.push_back(midpt);
+	midptVec.push_back(midptV);
 	
 	/* split data based on 2-means partitioning */
 	//cout << "splitting data"<<endl;
 	bool closertoMu1[npts];
-	split_1D_DataBy2Means(X, means, closertoMu1, splitting_dim);
+	split_1D_DataBy2Means(X, midpt, closertoMu1, splitting_dim);
 	//splitDataBy2Means(X, means, closertoMu1);
 	//cout << "split data of size "<<npts<<"by 2-means."<<endl;	
 	vector< vector<double> > leftsplit;
@@ -485,7 +476,7 @@ TwoMeansTreeNode * buildTwoMeansTree(vector< vector<double> > X, unsigned int d,
 	/* recurse on left and right sides of tree */
 	TwoMeansTreeNode * leftsubtree = buildTwoMeansTree(leftsplit, d+1, depth_threshold);
 	TwoMeansTreeNode * rightsubtree = buildTwoMeansTree(rightsplit, d+1, depth_threshold);
-	TwoMeansTreeNode * root = new TwoMeansTreeNode(meansVec, d, false);
+	TwoMeansTreeNode * root = new TwoMeansTreeNode(midptVec, d, false);
 	root->setLeftChild(leftsubtree);
 	//cout << "set left child "<<endl;
 	root->setRightChild(rightsubtree);
