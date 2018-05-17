@@ -502,7 +502,7 @@ int numPoints(TwoMeansTreeNode* tree){
  *	return a sample of a given size, drawn from X
  *	with replacement
  */
-vector< vector<double> > getRandomSample(vector< vector<double> > X, int size){
+vector< vector<double> > getRandomSample(vector< vector<double> > X, int size, int ** appearsInTree, int treeID){
 	vector< vector<double> > Xs;
 	vector< vector<double> > subsetXs;
 	for(int i=0; i<X.size(); i++){
@@ -516,16 +516,17 @@ vector< vector<double> > getRandomSample(vector< vector<double> > X, int size){
 		}
 		cout <<")"<<endl;
 		subsetXs.push_back(Xs[randidx]);
+		appearsInTree[randidx][treeID]++;
 	}
 	return subsetXs;
 }
 
-vector< TwoMeansTreeNode * > buildRandomForest(vector< vector<double> > X, int numTrees, unsigned int depthThreshold){
+vector< TwoMeansTreeNode * > buildRandomForest(vector< vector<double> > X, int numTrees, unsigned int depthThreshold, int ** appearsInTree){
 	
 	vector< TwoMeansTreeNode* > forest;
 	for(int i=0; i<numTrees; i++){
 		/* bagging: get a random sample, with replacement, from X */
-		vector< vector<double> > sampleXs = getRandomSample(X, X.size());
+		vector< vector<double> > sampleXs = getRandomSample(X, X.size(), appearsInTree, i);
 		TwoMeansTreeNode * tree = buildTwoMeansTree(sampleXs, 0, depthThreshold);
 		forest.push_back(tree);
 		cout << "finished tree "<<i<<endl;
@@ -671,15 +672,47 @@ int main(int argc, char **argv){
 		cout <<")"<<endl;
 	}
 		
-	int ntrees = 100;
-	vector< TwoMeansTreeNode* > random2meansforest = buildRandomForest(Y,ntrees, treedepth);
+	const int ntrees = 100;
+	int **appearsInTree = new int *[Y.size()]; /* store whether or not a
+					 	was included in the sample
+						used to build each tree */
+	for(int i=0; i<Y.size(); i++){
+		appearsInTree[i] = new int[ntrees];
+		for(int j=0; j<ntrees; j++){
+			appearsInTree[i][j] = 0;
+		}
+	}
+	vector< TwoMeansTreeNode* > random2meansforest = buildRandomForest(Y,ntrees, treedepth, appearsInTree);
+	
+	/* print out whether a point appears in a particular tree */
+	stringstream intreess;
+	if(readInData){
+		intreess<<"point_tree_appearances_"<<datasetsize<<"_pts"
+		<<ndims<<"dimensions_depth"<<treedepth<<argv[4];
+	} else {
+		intreess<<"point_tree_appearances_"<<datasetsize<<"_pts"
+		<<ndims<<"dimensions_depth"<<treedepth<<".txt";
+	}
+	ofstream appear_in_tree_file;
+	appear_in_tree_file.open(intreess.str().c_str());
+	for(int i=0; i<Y.size(); i++){
+		for(int j=0; j<ntrees; j++){
+			appear_in_tree_file << appearsInTree[i][j]<<"\t";
+		}
+		appear_in_tree_file <<endl;
+	}
+	appear_in_tree_file.close();	
 
 	/* print out each tree in the forest */
 	for(int i=0; i<random2meansforest.size(); i++){
 		TwoMeansTreeNode * tree = random2meansforest[i];
 		printTree(tree);
 	}
-		
+	
+	/* calculate how many times a pair of points appeared in the same
+		leaf node, out of samples where both were in bag */	
+	
+	
 	// print out pairwise estimated similarities as well as true distances
 	double estimated_sim_ij=0.0;
 	stringstream ofss;
