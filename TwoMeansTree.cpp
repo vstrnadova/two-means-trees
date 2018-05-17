@@ -535,64 +535,13 @@ vector< TwoMeansTreeNode * > buildRandomForest(vector< vector<double> > X, int n
 }
 	
 bool appearInSameLeafNode(vector<double> a, vector<double> b, TwoMeansTreeNode* tree){
-
 	bool foundadim[a.size()];
 	bool foundbdim[b.size()];
 	bool fa, fb, founda, foundb, foundaAndb=false;
-	if(tree->getLeftChild() == NULL && tree->getRightChild()==NULL){
-		/*cout << " a\t\tb "<<endl;
-		for(int i=0; i<a.size(); i++){
-			cout <<a[i]<<"\t\t"<<b[i]<<endl;
-		}*/
-		//cout <<endl;
+	if( tree->isLeafNode() ){
 		vector< vector<double> > pointsInLeafNode = tree->getPoints();
-		//cout << "leaf points: "<<endl;
-		for(int i=0; i<pointsInLeafNode.size(); i++){
-			//cout <<" point "<<i<<": (";
-			for(int j=0; j<a.size(); j++){
-				foundadim[j] = false;
-				foundbdim[j] = false;
-			}
-			fa=true; 
-			fb=true;
-			for(int j=0; j<(pointsInLeafNode[i]).size(); j++){
-				//cout <<(pointsInLeafNode[i])[j]<<", ";
-				if( (pointsInLeafNode[i])[j] == a[j] ){
-					foundadim[j] = true;	
-				} else {
-					foundadim[j] = false;
-				}
-				if( (pointsInLeafNode[i])[j] == b[j] ){
-					foundbdim[j] = true;
-				} else {
-					foundbdim[j] = false;
-				}
-			}
-			//cout <<"), ";
-			 
-			for(int j=0; j<a.size(); j++){
-				if(!foundadim[j]) fa=false;
-				if(!foundbdim[j]) fb=false;
-			}
-			if(fa && fb){
-				foundaAndb=true;
-			} else if(fa){
-				//cout << "found a"<<endl;
-				founda=true;
-			} else if(fb){
-				foundb=true;
-				//cout << "found b"<<endl;
-			}
-		}
-		//cout <<endl;
-		/*if(founda){
-			cout<<"found point a"<<endl;
-		}
-		if(foundb){
-			cout<<"found point b"<<endl;
-		}
-		if( founda && foundb ) cout << "found points a and b"<<endl;
-		*/
+		founda = (find(pointsInLeafNode.begin(), pointsInLeafNode.end(), a)!=pointsInLeafNode.end());
+		foundb = (find(pointsInLeafNode.begin(), pointsInLeafNode.end(), b)!=pointsInLeafNode.end());
 		return ( founda && foundb );
 	} else {
 		return (appearInSameLeafNode( a,b,tree->getLeftChild() ) || appearInSameLeafNode( a,b,tree->getRightChild() ) );
@@ -713,7 +662,7 @@ int main(int argc, char **argv){
 		leaf node, out of samples where both were in bag */	
 	
 	
-	// print out pairwise estimated similarities as well as true distances
+	// print out pairwise estimated similarities
 	double estimated_sim_ij=0.0;
 	stringstream ofss;
 	if(readInData){
@@ -726,25 +675,34 @@ int main(int argc, char **argv){
 	ofstream est_sim_file;
 	est_sim_file.open(ofss.str().c_str());
 	double true_dist_ij;
+	double coappearances=0;
+	/* for each pair of points, print out the number of times the two points
+		appeared in the same leaf node divided by the number of times
+		the two points were both used to build a tree */
 	for(int i=0; i<datasetsize; i++){
 		for(int j=0; j<datasetsize; j++){
 			estimated_sim_ij=0;
+			coappearances=0;
 			for(int k=0; k<ntrees; k++){	
-				if(appearInSameLeafNode(Y[i],Y[j],random2meansforest[k])){
-					estimated_sim_ij++;
-					/*cout << "found "<<Y[i]<<" and "<<Y[j]
+				if(appearsInTree[i][k]>0 && appearsInTree[j][k]>0){
+					coappearances++;
+					if(appearInSameLeafNode(Y[i],Y[j],random2meansforest[k])){
+						estimated_sim_ij++;
+						/*cout << "found "<<Y[i]<<" and "<<Y[j]
 						<< " in same node in tree"
 						<<k<<endl;*/
+					}
 				}
 			}
-			estimated_sim_ij /= (double) ntrees;
-			est_sim_file << estimated_sim_ij <<endl;
+			if(coappearances>0) estimated_sim_ij /= (double) coappearances;
+			est_sim_file << estimated_sim_ij<<"\t";
 		}
 		/*cout <<"finished printing similarities and true distances for point "<<i<<": (";
 		for(int d=0; d<ndims; d++){
 			cout<<Y[i][d]<<",";
 		}
 		cout <<")";*/
+		est_sim_file<<endl;
 	}
 	est_sim_file.close();
 	
