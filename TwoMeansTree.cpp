@@ -37,8 +37,8 @@ class TwoMeansTreeNode {
 				leafNode = false;
 				assert(pts.size() == 1);
 				if((pts[0]).size() != 1){
-					cout << "(pts[0]).size() = "<<(pts[0]).size()<<endl;
-					cout << "Internal node only stores one point, the midpoint. "<<endl;
+					//cout << "(pts[0]).size() = "<<(pts[0]).size()<<endl;
+					//cout << "Internal node only stores one point, the midpoint. "<<endl;
 				}
 				midpoint = pts[0][0];
 			}
@@ -127,15 +127,18 @@ void printTree(TwoMeansTreeNode *tree){
 		for(int i=0; i<pts.size(); i++){
 			cout << "(";
 			for(int j=0; j<(pts[i]).size(); j++){
-				cout << ", " << (pts[i])[j];
+				//cout << ", " << (pts[i])[j];
+				printf("%f10.0, ",(pts[i])[j] );
 			}
 			cout <<"), ";
 		}
 		cout <<">"<<endl;
 	} else {
 		cout <<"Internal node "//<< tree->getID() 
-			<<" at depth " << tree->getDepth() 
-			<<" midpoint: "<<tree->getMidpoint()<<endl;
+			<<" at depth " << tree->getDepth(); 
+			//<<" midpoint: "<<tree->getMidpoint()<<endl;
+			printf("midpoint: %f10.0 ", tree->getMidpoint() );
+		cout<<endl;
 		unsigned int depthcurrent = tree->getDepth();
 		if(depthcurrent==0){
 			cout << depthcurrent<<"--";
@@ -188,13 +191,16 @@ void printLeafNodes(TwoMeansTreeNode *tree){
  *	returns a pair that holds the
  * 	sum of squared distances from points
  *	in each cluster to their
- *	means, and the means themselves
+ *	means, and the midpoint
+ *	between the boundaries of the two
+ *	clusters  
  */
 pair< double, double > twoMeansOneD(vector<double> X){
 	int npts = X.size();
- 	/* process points in sorted order */	
+	//cout << "twoMeansOneD: number of input points = "<<npts<<endl;
+ 	
+	/* process points in sorted order */	
 	sort(X.begin(), X.end());
-	bool isCloserToMean1[npts];
 	double midpoint;
 	vector<double> means;
 	vector<double>::iterator it=X.begin();
@@ -205,10 +211,13 @@ pair< double, double > twoMeansOneD(vector<double> X){
 		sum2 += *it2;
 		it2++;
 	}
+	//cout << "initialization: sum2 = "<<sum2<<endl;
+	mean2 = sum2/(double) npts;
+	/* initially, set2 contains all points
+	 *	and set1 contains no points 	*/
 	int seenpts=0;
 	double sumsqdists=0.0, minsumsqdists=numeric_limits<double>::max();
 	while(seenpts<(npts-1)){
-		it++;
 		seenpts++;
 		/* adjust sums */
 		sum1+=*it;
@@ -216,8 +225,8 @@ pair< double, double > twoMeansOneD(vector<double> X){
 		/* adjust means */
 		mean1 = sum1/(double) seenpts;
 		mean2 = sum2/(double) (npts-seenpts);
-		cout << "iteration "<<seenpts<<": means found: mean1="<<mean1<<", mean2="<<mean2<<endl;
-		cout << " sum1="<<sum1<<", sum2="<<sum2<<endl;	
+		//cout << "iteration "<<seenpts<<": means found: mean1="<<mean1<<", mean2="<<mean2<<endl;
+		//cout << " sum1="<<sum1<<", sum2="<<sum2<<endl;	
 		
 	
 		/* assign points to closest mean and update sumsqdists */
@@ -226,11 +235,9 @@ pair< double, double > twoMeansOneD(vector<double> X){
 			double dist1 = fabs(X[i] - mean1);
 			double dist2 = fabs(X[i] - mean2);
 			if(dist1<dist2){
-				sumsqdists += fabs(X[i]-mean1)*fabs(X[i]-mean1);
-				isCloserToMean1[i] = true;
+				sumsqdists += dist1*dist1;
 			} else {
-			   	sumsqdists += fabs(X[i]-mean2)*fabs(X[i]-mean2);
-				isCloserToMean1[i] = false;	
+			   	sumsqdists += dist2*dist2;
 			}
 		}
 	
@@ -239,16 +246,19 @@ pair< double, double > twoMeansOneD(vector<double> X){
 		*/
 		if(sumsqdists<minsumsqdists){
 			minsumsqdists = sumsqdists;
-			means.clear();
-			means.push_back(mean1);
-			means.push_back(mean2);
-			midpoint = (mean1+mean2)/2;
+			double meanofmeans = (mean1+mean2)/2;
+			midpoint = (*it+*(it+1))/2.0;
+		 	/*	
 			cout << "min sum sq. dists = "<<minsumsqdists<<endl;
-			//cout << ", mean1 = "<<mean1<<", mean2 = "<<mean2<<endl;
+			cout << "mean1 = "<<mean1;
+			cout << ", mean2 = "<<mean2<<endl;
+			cout << "midpoint = "<<midpoint<<endl;
+			cout << "mean of means = "<<meanofmeans<<endl;
+			*/
 		}
+		it++;
 	}	
-	if(means.size()>1)
-	cout << "twoMeansOneD: returning midpont " <<midpoint<<endl;
+	//cout << "twoMeansOneD: returning midpont " <<midpoint<<endl;
 	return make_pair(minsumsqdists, midpoint);
 }
 
@@ -350,11 +360,13 @@ void splitDataBy2Means(vector<vector<double> > X, vector< vector<double> > mus, 
 }
 	
 int chooseBestSplit(vector< vector<double> > Xs, vector<int> splitting_dim_candidates){
-	// project X's onto splitting dimension
+	/* project X's onto splitting dimension */
 	vector<double> projectedXs;
 	int npts = Xs.size();
+	//cout <<"chooseBestSplit: number of input points = "<<npts<<endl;
 	double sumsqdists, minsumsqdists=numeric_limits<double>::max();
 	int bestSplitDim = -1;
+
 	/* test each splitting dimension from set of candidates,
 	* save the best splitting dimension in terms of k-means
 	*  optimality */
@@ -362,21 +374,20 @@ int chooseBestSplit(vector< vector<double> > Xs, vector<int> splitting_dim_candi
 		int splitting_dim = splitting_dim_candidates[j];
 		for(int i=0; i<npts; i++){
 			projectedXs.push_back(Xs[i][splitting_dim]);
-			
-			/* split points by 2-means in one dimension */	
-			pair< double, double > sqdistsmidptpair = twoMeansOneD(projectedXs);//twomeans(X);
-			sumsqdists = sqdistsmidptpair.first;
-			cout << "chooseBestSplit: sumsqdists at dimension"
-				<<splitting_dim<<" = "<<sumsqdists<<endl;
-			if(sumsqdists < minsumsqdists){
-				minsumsqdists = sumsqdists;
-				bestSplitDim = splitting_dim;
-			}
+		}
+		/* split points by 2-means in one dimension */	
+		pair< double, double > sqdistsmidptpair = twoMeansOneD(projectedXs);//twomeans(X);
+		sumsqdists = sqdistsmidptpair.first;
+		//cout << "chooseBestSplit: sumsqdists at dimension"
+		//<<splitting_dim<<" = "<<sumsqdists<<endl;
+		if(sumsqdists < minsumsqdists){
+			minsumsqdists = sumsqdists;
+			bestSplitDim = splitting_dim;
 		}
 		projectedXs.clear();
 	}
-	cout << "chooseBestSplit: best splitting dim = "<<bestSplitDim;
-	cout <<", minsumsqdists = "<<minsumsqdists<<endl;
+	//cout << "chooseBestSplit: best splitting dim = "<<bestSplitDim;
+	//cout <<", minsumsqdists = "<<minsumsqdists<<endl;
 	return bestSplitDim;
 }
 
@@ -438,7 +449,7 @@ TwoMeansTreeNode * buildTwoMeansTree(vector< vector<double> > X, unsigned int d,
 	
 	/* choose best splitting dimension from among candidates */
 	int splitting_dim = chooseBestSplit(X, splitting_dim_candidates);
-	cout << "splitting dimension at depth "<<d<<" = "<<splitting_dim<<endl;
+	//cout << "splitting dimension at depth "<<d<<" = "<<splitting_dim<<endl;
 	
 	/* project onto splitting dimension */	
 	//cout << " projecting data onto splitting dimension "<<endl;
