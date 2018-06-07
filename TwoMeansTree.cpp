@@ -10,6 +10,7 @@
 #include <algorithm> //sort
 #include <limits>
 #include <numeric> //accumulate
+//#include <unordered_map>
 
 using namespace std;
 
@@ -19,6 +20,7 @@ class TwoMeansTreeNode {
 		TwoMeansTreeNode *right;
 		unsigned int depth;
 		double midpoint;
+		int splitDim;
 		//vector< double > means;
 		//double means[2];
 		vector< vector<double> > points;
@@ -41,6 +43,7 @@ class TwoMeansTreeNode {
 					//cout << "Internal node only stores one point, the midpoint. "<<endl;
 				}
 				midpoint = pts[0][0];
+				splitDim = -1;
 			}
 			left = NULL;
 			right = NULL;
@@ -58,6 +61,14 @@ class TwoMeansTreeNode {
 	
 		void setLeftChild(TwoMeansTreeNode* t2){
 			this->left = t2;
+		}
+	
+		void setSplitDim(int splitdim){
+			this->splitDim = splitdim;
+		}
+		
+		int getSplitDim(){
+			return this->splitDim;
 		}
 		
 		unsigned int getDepth(){
@@ -247,7 +258,7 @@ pair< double, double > twoMeansOneD(vector<double> X){
 		if(sumsqdists<minsumsqdists){
 			minsumsqdists = sumsqdists;
 			double meanofmeans = (mean1+mean2)/2;
-			midpoint = (*it+*(it+1))/2.0;
+			midpoint = (*it+*(it+1))/2.0; //midpoint is midpoint between the borders of the clusters represented by the two means
 		 	/*	
 			cout << "min sum sq. dists = "<<minsumsqdists<<endl;
 			cout << "mean1 = "<<mean1;
@@ -492,7 +503,7 @@ TwoMeansTreeNode * buildTwoMeansTree(vector< vector<double> > X, unsigned int d,
 	//cout << "set left child "<<endl;
 	root->setRightChild(rightsubtree);
 	//cout << "set right child"<<endl;
-	
+	root->setSplitDim(splitting_dim);
 	return root;	
 }
 
@@ -543,6 +554,75 @@ vector< TwoMeansTreeNode * > buildRandomForest(vector< vector<double> > X, int n
 		cout << "finished tree "<<i<<endl;
 	}
 	return forest;
+}
+
+TwoMeansTreeNode* classLeaf(vector<double> x, TwoMeansTreeNode* t){
+	if(t->isLeafNode()){	
+		return t;	
+	} else {
+		int splitdim = t->getSplitDim();
+		double midpt = t->getMidpoint();
+		if(x[splitdim] < midpt){
+			return classLeaf(x, t->getLeftChild());
+		} else {
+			return classLeaf(x, t->getRightChild());
+		}	
+	}
+}
+
+vector<double> nearestNeighbor(vector<double> x, vector<TwoMeansTreeNode*> forest){
+	vector< vector<double> > neighbors;
+	const int ntrees = forest.size();
+	/* run the point down each tree, and record how many
+		times each point co-occurs with the point 
+		the nearest neighbors are those which 
+		co-occured most frequently with the input
+		point x */
+	vector< vector<double> > leafpoints;
+	//unordered_map< vector<double> , int> coOccurMap;
+	vector< pair<vector<double>, int> > coOccurCounts; 
+	vector< vector<double> > uniqueNeighbors;
+	int maxCoOccurrences = 0;
+	for(int t=0; t<ntrees; t++){
+		TwoMeansTreeNode* leaf = classLeaf(x, forest[t]);
+		vector< vector<double> > leafpoints = leaf->getPoints();
+		for(int i=0; i<leafpoints.size(); i++){
+			vector<double> y = leafpoints[i];
+			//unordered_map< vector<double>, int >::const_iterator found = coOccurMap.find(y);
+  			vector< vector<double> >::iterator found = find(uniqueNeighbors.begin(), uniqueNeighbors.end(), y);
+			//if ( found == coOccurMap.end() ){
+			if ( found == uniqueNeighbors.end() ){
+				//coOccurMap.insert(make_pair< vector<double>, int>(y, 1));
+				uniqueNeighbors.push_back(y);
+				coOccurCounts.push_back(make_pair< vector<double>, int >(y,1));
+				if(maxCoOccurrences==0){
+					maxCoOccurrences=1;
+				}
+			} else {
+				//coOccurMap.at(y)++;
+				int foundidx = found-uniqueNeighbors.begin();
+				(coOccurCounts[foundidx]).second++;
+				if(coOccurCounts[foundidx].second > maxCoOccurrences){
+					//maxCoOccurrences = coOccurMap.at(y);
+					maxCoOccurrences = (coOccurCounts[foundidx]).second;
+				}
+			}
+		}
+	}
+	
+	//for(auto& y::coOccurMap){
+	for(int i=0; i<coOccurCounts.size(); i++){
+		pair< vector<double>, int> y = coOccurCounts[i];
+		if(y.second == maxCoOccurrences){
+			neighbors.push_back(y.first);
+		}
+	}
+	
+	if(neighbors.size()>1){
+		random_shuffle(neighbors.begin(), neighbors.end());
+	}
+	vector<double> nearestNeighbor = neighbors[0];
+	return nearestNeighbor;
 }
 	
 bool appearInSameLeafNode(vector<double> a, vector<double> b, TwoMeansTreeNode* tree){
@@ -670,7 +750,7 @@ int main(int argc, char **argv){
 	}
 	
 	/* calculate how many times a pair of points appeared in the same
-		leaf node, out of samples where both were in bag */	
+		leaf node, out of the samples where both were in bag */	
 	
 	
 	// print out pairwise estimated similarities
@@ -683,6 +763,7 @@ int main(int argc, char **argv){
 		ofss<<"estimatedsim_"<<datasetsize<<"_pts"
 		<<ndims<<"dimensions_depth"<<treedepth<<".txt";
 	}
+	cout << "printing estimated similarities to file: "<<ofss.str()<<endl;
 	ofstream est_sim_file;
 	est_sim_file.open(ofss.str().c_str());
 	double true_dist_ij;
@@ -717,5 +798,23 @@ int main(int argc, char **argv){
 	}
 	est_sim_file.close();
 	
+	/* test random point for nearest neighbor */
+	for(int i=0; i<10; i++){
+		int rand_idx = rand()%datasetsize;	
+		vector<double> randpt = Y[rand_idx];
+		cout << "random point: (";
+		for(int d=0; d<randpt.size(); d++){
+			cout <<randpt[d]<<",";
+		}
+		cout <<")"<<endl;
+		vector<double> nearest = nearestNeighbor(randpt, random2meansforest);	
+		cout << "nearest neighbor point: (";
+		for(int d=0; d<randpt.size(); d++){
+			cout <<nearest[d]<<",";
+		}
+		cout <<")"<<endl;
+		cout << "Euclidean distance between random point and nearest neighbor: "<<euclideanDistance(randpt, nearest)<<endl;
+	
+	}
 	return 0;
 }
