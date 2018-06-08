@@ -591,14 +591,14 @@ vector<double> nearestNeighbor(vector<double> x, vector<TwoMeansTreeNode*> fores
 			//unordered_map< vector<double>, int >::const_iterator found = coOccurMap.find(y);
   			vector< vector<double> >::iterator found = find(uniqueNeighbors.begin(), uniqueNeighbors.end(), y);
 			//if ( found == coOccurMap.end() ){
-			if ( found == uniqueNeighbors.end() ){
+			if ( found == uniqueNeighbors.end() && y != x ){
 				//coOccurMap.insert(make_pair< vector<double>, int>(y, 1));
 				uniqueNeighbors.push_back(y);
 				coOccurCounts.push_back(make_pair< vector<double>, int >(y,1));
 				if(maxCoOccurrences==0){
 					maxCoOccurrences=1;
 				}
-			} else {
+			} else if( y != x) { /* ensure that nearest neighbor isn't the point itself */
 				//coOccurMap.at(y)++;
 				int foundidx = found-uniqueNeighbors.begin();
 				(coOccurCounts[foundidx]).second++;
