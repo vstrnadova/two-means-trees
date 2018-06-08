@@ -97,6 +97,10 @@ class TwoMeansTreeNode {
 		
 };
 
+bool occurCountGreaterThan(pair< vector<double>, int > a, pair< vector<double>, int > b){
+	return a.second > b.second;
+}
+
 void printLevelOrder(TwoMeansTreeNode *tnode)
 {
     // Base Case
@@ -570,6 +574,59 @@ TwoMeansTreeNode* classLeaf(vector<double> x, TwoMeansTreeNode* t){
 	}
 }
 
+vector< vector<double> > kNearestNeighbors(vector<double> x, int k, vector<TwoMeansTreeNode*> forest){
+	vector< vector<double> > neighbors;
+	const int ntrees = forest.size();
+	/* run the point down each tree, and record how many
+		times each point co-occurs with the point 
+		the nearest neighbors are those which 
+		co-occured most frequently with the input
+		point x */
+	vector< vector<double> > leafpoints;
+	//unordered_map< vector<double> , int> coOccurMap;
+	vector< pair<vector<double>, int> > coOccurCounts; 
+	vector< vector<double> > uniqueNeighbors;
+	int maxCoOccurrences = 0;
+	for(int t=0; t<ntrees; t++){
+		TwoMeansTreeNode* leaf = classLeaf(x, forest[t]);
+		vector< vector<double> > leafpoints = leaf->getPoints();
+		for(int i=0; i<leafpoints.size(); i++){
+			vector<double> y = leafpoints[i];
+			//unordered_map< vector<double>, int >::const_iterator found = coOccurMap.find(y);
+  			vector< vector<double> >::iterator found = find(uniqueNeighbors.begin(), uniqueNeighbors.end(), y);
+			//if ( found == coOccurMap.end() ){
+			if ( found == uniqueNeighbors.end() && y != x ){
+				//coOccurMap.insert(make_pair< vector<double>, int>(y, 1));
+				uniqueNeighbors.push_back(y);
+				coOccurCounts.push_back(make_pair< vector<double>, int >(y,1));
+				if(maxCoOccurrences==0){
+					maxCoOccurrences=1;
+				}
+			} else if( y != x) { /* ensure that nearest neighbor isn't the point itself */
+				//coOccurMap.at(y)++;
+				int foundidx = found - uniqueNeighbors.begin();
+				(coOccurCounts[foundidx]).second++;
+				if(coOccurCounts[foundidx].second > maxCoOccurrences){
+					//maxCoOccurrences = coOccurMap.at(y);
+					maxCoOccurrences = (coOccurCounts[foundidx]).second;
+				}
+			}
+		}
+	}
+	
+	//for(auto& y::coOccurMap){
+	//for(int i=0; i<coOccurCounts.size(); i++){
+		//pair< vector<double>, int> y = coOccurCounts[i];
+	
+	sort(coOccurCounts.begin(), coOccurCounts.end(), occurCountGreaterThan);
+	
+	for(int j=0; j < k; j++){
+		neighbors.push_back((coOccurCounts[j]).first);
+	}
+	
+	return neighbors;	
+}
+
 vector<double> nearestNeighbor(vector<double> x, vector<TwoMeansTreeNode*> forest){
 	vector< vector<double> > neighbors;
 	const int ntrees = forest.size();
@@ -798,7 +855,7 @@ int main(int argc, char **argv){
 	}
 	est_sim_file.close();
 	
-	/* test random point for nearest neighbor */
+	/* test random point for nearest neighbors */
 	for(int i=0; i<10; i++){
 		int rand_idx = rand()%datasetsize;	
 		vector<double> randpt = Y[rand_idx];
@@ -807,14 +864,18 @@ int main(int argc, char **argv){
 			cout <<randpt[d]<<",";
 		}
 		cout <<")"<<endl;
-		vector<double> nearest = nearestNeighbor(randpt, random2meansforest);	
-		cout << "nearest neighbor point: (";
-		for(int d=0; d<randpt.size(); d++){
-			cout <<nearest[d]<<",";
+		int k = 5;
+		vector< vector<double> > nearestnbrs = kNearestNeighbors(randpt, k, random2meansforest);	
+		cout << "k nearest neighbors : (";
+		for(int j=0; j<k; j++){
+			vector<double> neighbor = nearestnbrs[j];
+			for(int d=0; d<neighbor.size(); d++){
+			cout <<neighbor[d];
+				if(d!=neighbor.size()-1) cout <<",";
+			}
+			cout <<")"<<endl;
+			cout << "Euclidean distance between random point and nearest neighbor: "<<euclideanDistance(randpt, neighbor)<<endl;
 		}
-		cout <<")"<<endl;
-		cout << "Euclidean distance between random point and nearest neighbor: "<<euclideanDistance(randpt, nearest)<<endl;
-	
 	}
 	return 0;
 }
