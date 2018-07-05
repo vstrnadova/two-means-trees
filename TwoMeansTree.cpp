@@ -10,6 +10,8 @@
 #include <algorithm> //sort
 #include <limits>
 #include <numeric> //accumulate
+#include <string.h> //strcmp
+#include <memory> //unique_ptr
 //#include <unordered_map>
 
 using namespace std;
@@ -137,22 +139,24 @@ void printTree(TwoMeansTreeNode *tree){
 	assert( (tree->getLeftChild()== NULL && tree->getRightChild() == NULL ) || (tree->getLeftChild()!= NULL && tree->getRightChild() != NULL));
 	if( tree->getLeftChild() == NULL && tree->getRightChild()==NULL ){
 		vector< vector<double> > pts = tree->getPoints();
+		if(pts.size()==0) cout << "Warning: Leaf node with no points."<<endl;
 		cout << "Leaf node "//<< tree->getID() 
 			<<"points at depth "<<tree->getDepth() <<": <";
 		for(int i=0; i<pts.size(); i++){
-			cout << "(";
+			cout <<" * ";
+			/*cout <<": (";
 			for(int j=0; j<(pts[i]).size(); j++){
 				//cout << ", " << (pts[i])[j];
 				printf("%f10.0, ",(pts[i])[j] );
 			}
-			cout <<"), ";
+			cout <<"), ";*/
 		}
 		cout <<">"<<endl;
 	} else {
 		cout <<"Internal node "//<< tree->getID() 
 			<<" at depth " << tree->getDepth(); 
 			//<<" midpoint: "<<tree->getMidpoint()<<endl;
-			printf("midpoint: %f10.0 ", tree->getMidpoint() );
+			printf("midpoint: %f10 \nsplitting dimension: %d",  tree->getMidpoint(), tree->getSplitDim() );
 		cout<<endl;
 		unsigned int depthcurrent = tree->getDepth();
 		if(depthcurrent==0){
@@ -226,20 +230,28 @@ pair< double, double > twoMeansOneD(vector<double> X){
 		sum2 += *it2;
 		it2++;
 	}
-	//cout << "initialization: sum2 = "<<sum2<<endl;
+	if(npts<4){
+		for(int i=0; i<npts; i++){
+			cout << "point "<<i<<" = "<<X[i]<<endl;
+		}
+		cout << "initialization: sum2 = "<<sum2<<endl;
+	}
 	mean2 = sum2/(double) npts;
 	/* initially, set2 contains all points
 	 *	and set1 contains no points 	*/
 	int seenpts=0;
 	double sumsqdists=0.0, minsumsqdists=numeric_limits<double>::max();
 	while(seenpts<(npts-1)){
+		if(npts<4) cout << "seen pts = "<<seenpts<<endl;
 		seenpts++;
 		/* adjust sums */
 		sum1+=*it;
 		sum2-=*it;
 		/* adjust means */
 		mean1 = sum1/(double) seenpts;
+		if(npts<4) cout << "mean1 = "<<mean1<<endl;
 		mean2 = sum2/(double) (npts-seenpts);
+		if(npts<4) cout << "mean2 = "<<mean2<<endl;
 		//cout << "iteration "<<seenpts<<": means found: mean1="<<mean1<<", mean2="<<mean2<<endl;
 		//cout << " sum1="<<sum1<<", sum2="<<sum2<<endl;	
 		
@@ -263,6 +275,7 @@ pair< double, double > twoMeansOneD(vector<double> X){
 			minsumsqdists = sumsqdists;
 			double meanofmeans = (mean1+mean2)/2;
 			midpoint = (*it+*(it+1))/2.0; //midpoint is midpoint between the borders of the clusters represented by the two means
+			if(npts<4) cout << "midpoint = "<<midpoint<<endl;
 		 	/*	
 			cout << "min sum sq. dists = "<<minsumsqdists<<endl;
 			cout << "mean1 = "<<mean1;
@@ -437,7 +450,7 @@ TwoMeansTreeNode * buildTwoMeansTree(vector< vector<double> > X, unsigned int d,
 	
 	int ndimensions;
 	if(npts>0){
-		ndimensions = X[0].size(); //assumes X's are all same dimensionality
+		ndimensions = (X[0]).size(); //assumes X's are all same dimensionality
 	}
 	
 	/* Choose a random (with replacement) subset of fixed size
@@ -497,7 +510,11 @@ TwoMeansTreeNode * buildTwoMeansTree(vector< vector<double> > X, unsigned int d,
 			nright++;
 		}
 	}
-	//cout << "splitting: "<<nleft<<" points left and "<<nright<<" points right"<<endl;
+	if(leftsplit.size()==0 || rightsplit.size()== 0){ // in this case all 1-D projections were equivalent
+		TwoMeansTreeNode * leafnode = new TwoMeansTreeNode(X, d, true);
+		return leafnode;
+	}
+	cout << "splitting: "<<nleft<<" points left and "<<nright<<" points right"<<endl;
 	
 	/* recurse on left and right sides of tree */
 	TwoMeansTreeNode * leftsubtree = buildTwoMeansTree(leftsplit, d+1, depth_threshold);
@@ -536,11 +553,11 @@ vector< vector<double> > getRandomSample(vector< vector<double> > X, int size, i
 	}
 	for(int i=0; i<size; i++){
 		int randidx = rand()%size;
-		cout << "adding random point (";
+		/*cout << "adding random point (";
 		for(int j=0; j<Xs[randidx].size(); j++){
 			cout << Xs[randidx][j]<<" ";
 		}
-		cout <<")"<<endl;
+		cout <<")"<<endl;*/
 		subsetXs.push_back(Xs[randidx]);
 		appearsInTree[randidx][treeID]++;
 	}
@@ -700,13 +717,12 @@ bool appearInSameLeafNode(vector<double> a, vector<double> b, TwoMeansTreeNode* 
 int main(int argc, char **argv){
 	unsigned int treedepth;
 	
-	if(argc < 4 || argc>5)
+	if(argc < 4 || argc > 5)
 	{
 		printf("Usage : ./testTwoMeansForest <number of dimensions> <tree depth> <data set size (number of points)> [(optional) inputfile]\n");
 		exit(-1);
 	}
 	bool readInData = false;
-	ifstream inFile;
 	if(argc == 5){
 		readInData = true;
 	}	
@@ -723,26 +739,70 @@ int main(int argc, char **argv){
 	printTree(tree);
 	*/
 		
+	ifstream inFile;
 	vector< vector<double> > Y;
 	int ndims = atoi(argv[1]);
 	if(readInData){
-		inFile.open(argv[4]);
-		if (!inFile) {
-        		cout << "Unable to open file";
-        		exit(1); // terminate with error
-    		}
-		cout << "reading in data..."<<endl;
-		double x;
-		vector<double> temp;
-		while(inFile >> x){	
-			temp.push_back(x);
-			if(temp.size()==ndims){
+		string filename = argv[4];
+		size_t found = filename.find_first_of(".");
+		string extension = filename.substr(found, 4);
+		if( strcmp(extension.c_str(),".txt") == 0){
+			inFile.open(filename.c_str());
+			if (!inFile) {
+        			cout << "Unable to text open file";
+        			exit(1); // terminate with error
+    			}
+			cout << "reading in data..."<<endl;
+			double x;
+			vector<double> temp;
+			while(inFile >> x){	
+				temp.push_back(x);
+				if(temp.size()==ndims){
+					Y.push_back(temp);
+					temp.clear();
+				}
+			}
+			inFile.close();
+			cout << "read in text input data"<<endl;
+		} else if( strcmp(extension.c_str(),".bin") == 0 ) {
+			cout << "reading in CIFAR binary file..."<<endl;
+			ifstream inFile2;
+			inFile2.open(filename.c_str(), ios::in | ios::binary | ios::ate);	
+			if(!inFile2){
+				cout << "Unable to open CIFAR binary file."<<endl;
+				exit(0);
+			}
+			int fileSize = inFile2.tellg();
+			cout << "file size = "<< fileSize <<" bytes "<<endl;
+			//std::unique_ptr<char[]> buffer(new char[fileSize]);
+    			char * buffer = new char[fileSize];
+			inFile2.seekg(0, std::ios::beg);
+    			inFile2.read(buffer, fileSize);
+			inFile2.close();
+			cout << "read in CIFAR binary input data."<<endl;
+			int num_images = 10;
+			vector<double> temp;
+			for(int i=0; i<num_images; i++){ //loop through the images
+				for(int j=1; j<3073; j++){ // j=0 is the label
+					unsigned char pixelVal = (unsigned char) buffer[i+3073+j];
+					temp.push_back(pixelVal);
+					if(j<10){ 
+					//	cout << pixelVal << endl;
+					}
+				}
 				Y.push_back(temp);
 				temp.clear();
+			}	
+			cout << "stored pixel values"<<endl;
+			cout << "number of images = "<<Y.size()<<endl;
+			if(Y.size()>0){
+				cout << "dimensionality = "<<Y[0].size()<<endl;
 			}
+			//exit(0);
+		} else {
+			cout << "cannot recognize file format."<<endl;
+			exit(0);
 		}
-		inFile.close();
-		cout << "read in input data"<<endl;
 	} else {
 		cout << "generating random data"<<endl;
 		for(int i=0; i<datasetsize; i++){
@@ -758,16 +818,17 @@ int main(int argc, char **argv){
 	TwoMeansTreeNode * tree2 = buildTwoMeansTree(Y, 0, treedepth);
 	cout << "Tree 2: "<< endl;
 	//printLevelOrder(tree2);
-        printTree(tree2);	
+        
+	//printTree(tree2);	
 	//cout << "Tree 2: number of points in tree = "<<numPoints(tree2)<<endl;
 
-	for(int i=0; i<Y.size(); i++){
+	/* for(int i=0; i<Y.size(); i++){
 		cout << "point "<<i<<": (";
 		for(int j=0; j<Y[i].size(); j++){
 			cout << Y[i][j]<<", ";
 		}
 		cout <<")"<<endl;
-	}
+	}*/
 		
 	const int ntrees = 100;
 	int **appearsInTree = new int *[Y.size()]; /* store whether or not a
@@ -856,7 +917,7 @@ int main(int argc, char **argv){
 	est_sim_file.close();
 	
 	/* test random point for nearest neighbors */
-	for(int i=0; i<10; i++){
+	/* for(int i=0; i<10; i++){
 		int rand_idx = rand()%datasetsize;	
 		vector<double> randpt = Y[rand_idx];
 		cout << "random point: (";
@@ -876,6 +937,6 @@ int main(int argc, char **argv){
 			cout <<")"<<endl;
 			cout << "Euclidean distance between random point and nearest neighbor: "<<euclideanDistance(randpt, neighbor)<<endl;
 		}
-	}
+	}*/
 	return 0;
 }
