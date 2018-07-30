@@ -121,6 +121,27 @@ bool occurCountGreaterThan(pair< vector<double>, int > a, pair< vector<double>, 
 	return a.second > b.second;
 }
 
+void printCoOccurMap(int datasetsize){
+	stringstream ofss;
+	ofss<<"coOccurMap_"<<datasetsize<<"_pts.txt";
+	cout << "printing coOccurMap to file: "<<ofss.str()<<endl;
+	ofstream coOccur_file;
+	coOccur_file.open(ofss.str().c_str());
+	for(auto i = 0; i<datasetsize; i++)
+	{	
+		auto found = coOccurMap.find (i);
+		if(found != coOccurMap.end()){
+			auto pairvec = coOccurMap.at(i);
+			coOccur_file << i <<endl;
+			for(int j=0; j<pairvec.size(); j++){
+				pair< int, int > countpair = pairvec[j];
+				coOccur_file << " ("<<countpair.first<<", "<<countpair.second<<"), ";
+			}
+			coOccur_file <<endl;
+		}
+	}
+}
+
 void printLevelOrder(TwoMeansTreeNode *tnode)
 {
     // Base Case
@@ -471,11 +492,27 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
 		TwoMeansTreeNode * leafnode = new TwoMeansTreeNode(X, d, true, idparent);
 		/* store the indices of points that co-occur
 			in the leaf node */
-		for(int it = 0; it<indices.size(); it++){
-			int i = indices[it];
+		vector<int> uniqueindices;
+		uniqueindices = indices;
+		cout << "leaf node: indices.size() = "<< indices.size()<<endl;
+		cout << "indices: ";
+		for(int index=0; index<indices.size(); index++){
+			cout << indices[index]<<", ";
+		}
+		cout <<endl;
+		sort(uniqueindices.begin(), uniqueindices.end());
+		auto last = unique(uniqueindices.begin(), uniqueindices.end());	
+		uniqueindices.erase(last,uniqueindices.end());
+		cout << "leaf node: uniqueindices.size() = "<< uniqueindices.size()<<endl;
+		/* for(int i=0; i<uniqueindices.size(); i++){
+			cout << "idx "<<i<<" = "<<uniqueindices[i]<<", ";
+		}*/
+		cout<<endl;
+		for(int it = 0; it<uniqueindices.size(); it++){
+			int i = uniqueindices[it];
 			//cout << "i = "<<i;
-			for(int it2 = 0; it2<indices.size(); it2++){
-				int j = indices[it2];
+			for(int it2 = 0; it2<it; it2++){
+				int j = uniqueindices[it2];
 				//cout <<" j = "<<j<<endl;
 				int numcooccurrences=0;
 				if(j<i){
@@ -638,7 +675,7 @@ vector<int> getRandomSampleIndices(int n, int ** appearsInTree, int treeID){
 	vector<int> indices;
 	for(int i=0; i<n; i++){
 		int randidx = rand()%n;
-		/*cout << "adding random point << randidx << endl; */
+		//cout << "adding random point "<< randidx << endl; 
 		indices.push_back(randidx);
 		appearsInTree[randidx][treeID]++;
 	}
@@ -651,6 +688,7 @@ vector< TwoMeansTreeNode * > buildRandomForest(vector< vector<double> > X, int n
 	for(int i=0; i<numTrees; i++){
 		/* bagging: get a random sample, with replacement, from X */
 		vector<int> randindices = getRandomSampleIndices(X.size(), appearsInTree, i);
+		cout << "sample size for tree "<<i<<" = "<<randindices.size()<<endl;
 		vector< vector<double> > sampleXs;
 		for(int j=0; j<randindices.size(); j++){
 			sampleXs.push_back( X[randindices[j]] );
@@ -691,13 +729,6 @@ vector< vector<double> > kNearestNeighbors(vector<double> x, int k, vector<TwoMe
 	vector< vector<double> > uniqueNeighbors;
 	int maxCoOccurrences = 0;
 	
-	/* 
-	
-	coOccurMap	
-	for(auto itr = (coOccurMap[idx]).begin(); itr < (coOccurMap[idx]).end(); itr++){
-		
-	}
-	*/
 	
 	for(int t=0; t<ntrees; t++){
 		TwoMeansTreeNode* leaf = classLeaf(x, forest[t]);
@@ -1008,17 +1039,19 @@ int main(int argc, char **argv){
 	double true_dist_ij;
 	double estimated_sim_ij=0.0;
 	double coappearances=0;
+	printCoOccurMap(datasetsize);
 	/* for each pair of points, print out the number of times the two points
 		appeared in the same leaf node divided by the number of times
 		the two points were both used to build a tree */
 	for(int i=0; i<datasetsize; i++){
 		//cout << "point "<<i<<": ";
-		for(int j=0; j<datasetsize; j++){
+		for(int j=0; j<i; j++){
 			int treeappearances = 0;
 			estimated_sim_ij = 0;
 			for(int t=0; t<ntrees; t++){	
 				if(appearsInTree[i][t]>0 && appearsInTree[j][t]>0){
 					treeappearances++;
+					//treeappearances += appearsInTree[i][t]*appearsInTree[j][t];
 				}
 			}
 			auto pairvec = coOccurMap[i];
@@ -1026,6 +1059,11 @@ int main(int argc, char **argv){
 				if((pairvec[m]).first == j){
 					estimated_sim_ij = (pairvec[m]).second;
 				}
+			}
+			if(estimated_sim_ij - treeappearances > 0){//>treeappearances && treeappearances >0){ 
+				cout << "i = "<<i<<", j = "<<j;
+				cout << ", tree appeareances = "<<treeappearances<<", ";
+				cout << "co-occurrences = "<<estimated_sim_ij<<endl;
 			}
 			if(treeappearances>0) estimated_sim_ij /= (double) treeappearances;
 			est_sim_file << estimated_sim_ij<<"\t";
