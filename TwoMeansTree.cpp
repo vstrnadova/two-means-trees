@@ -124,7 +124,7 @@ bool occurCountGreaterThan(pair< vector<double>, int > a, pair< vector<double>, 
 void printCoOccurMap(int datasetsize){
 	stringstream ofss;
 	ofss<<"coOccurMap_"<<datasetsize<<"_pts.txt";
-	cout << "printing coOccurMap to file: "<<ofss.str()<<endl;
+	cout << "printing leaf coOccurMap to file: "<<ofss.str()<<endl;
 	ofstream coOccur_file;
 	coOccur_file.open(ofss.str().c_str());
 	for(auto i = 0; i<datasetsize; i++)
@@ -675,7 +675,7 @@ vector<int> getRandomSampleIndices(int n, int ** appearsInTree, int treeID){
 	vector<int> indices;
 	for(int i=0; i<n; i++){
 		int randidx = rand()%n;
-		//cout << "adding random point "<< randidx << endl; 
+		//cout << "  adding random point "<< randidx << endl; 
 		indices.push_back(randidx);
 		appearsInTree[randidx][treeID]++;
 	}
@@ -958,8 +958,8 @@ int main(int argc, char **argv){
 		}
 	}
 	//cout << " generating tree2..."<<endl;
-	TwoMeansTreeNode * tree2 = buildTwoMeansTree(indices, Y, 0, treedepth, 0);
-	cout << "Tree 2: "<< endl;
+	//TwoMeansTreeNode * tree2 = buildTwoMeansTree(indices, Y, 0, treedepth, 0);
+	//cout << "Tree 2: "<< endl;
 	//printLevelOrder(tree2);
         
 	//printTree(tree2);	
@@ -973,7 +973,7 @@ int main(int argc, char **argv){
 		cout <<")"<<endl;
 	}*/
 		
-	const int ntrees = 100;
+	const int ntrees = 10;//100;
 	int **appearsInTree = new int *[Y.size()]; /* store whether or not a
 					 	was included in the sample
 						used to build each tree */
@@ -1061,9 +1061,11 @@ int main(int argc, char **argv){
 				}
 			}
 			if(estimated_sim_ij - treeappearances > 0){//>treeappearances && treeappearances >0){ 
-				cout << "i = "<<i<<", j = "<<j;
+				cout << "Error: estimated similarity > tree co-appearances"<<endl;
+				cout << "\ti = "<<i<<", j = "<<j;
 				cout << ", tree appeareances = "<<treeappearances<<", ";
 				cout << "co-occurrences = "<<estimated_sim_ij<<endl;
+				return 0;
 			}
 			if(treeappearances>0) estimated_sim_ij /= (double) treeappearances;
 			est_sim_file << estimated_sim_ij<<"\t";
