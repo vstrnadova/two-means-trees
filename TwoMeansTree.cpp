@@ -448,9 +448,14 @@ int chooseBestSplit(vector< vector<double> > Xs, vector<int> splitting_dim_candi
 		for(int i=0; i<npts; i++){
 			projectedXs.push_back(Xs[i][splitting_dim]);
 		}
-		/* split points by 2-means in one dimension */	
+		/* split points by 2-means in one dimension */
+        struct timeval twoMeansStart, twoMeansFinish;
+        gettimeofday(&twoMeansStart, NULL);
 		pair< double, double > sqdistsmidptpair = twoMeansOneD(projectedXs);//twomeans(X);
-		sumsqdists = sqdistsmidptpair.first;
+        gettimeofday(&twoMeansFinish, NULL);
+        double twoMeansTime = twoMeansFinish.tv_sec - twoMeansStart.tv_sec;
+        cout << " two means time = " << twoMeansTime << endl;
+        sumsqdists = sqdistsmidptpair.first;
 		//cout << "chooseBestSplit: sumsqdists at dimension"
 		//<<splitting_dim<<" = "<<sumsqdists<<endl;
 		if(sumsqdists < minsumsqdists){
@@ -482,11 +487,14 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
 	//cout << "indices.size() = "<<indices.size()<<endl;
 	int min_pts_in_leaf = 1;
 	//cout << "npts = "<<X.size()<<endl;
-	/* split criteria: stop splitting when number 
+	
+    /* split criteria: stop splitting when number
 	 *	of points in a node is low, or when
 	 * 	depth limit is met
 	*/
-	if(d>=depth_threshold || npts <= min_pts_in_leaf){
+    struct timeval createLeafNodeStart, createLeafNodeFinish;
+    gettimeofday(&createLeafNodeStart, NULL);
+    if(d>=depth_threshold || npts <= min_pts_in_leaf){
 		//cout << "d>="<<depth_threshold<<" or "<<npts<<"<="<<min_pts_in_leaf<<endl;
 		//cout << "creating new leaf node with "<<npts<<" points "<<endl;
 		TwoMeansTreeNode * leafnode = new TwoMeansTreeNode(X, d, true, idparent);
@@ -500,11 +508,16 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
 			cout << indices[index]<<", ";
 		}
 		cout <<endl;*/
-		
+        struct timeval sortUniqueIndicesStart, sortUniqueIndicesFinish;
+        gettimeofday(&sortUniqueIndicesStart, NULL);
 		sort(uniqueindices.begin(), uniqueindices.end());
-		auto last = unique(uniqueindices.begin(), uniqueindices.end());	
+		gettimeofday(&sortUniqueIndicesFinish, NULL);
+        double sortUniqueIndicesTime = sortUniqueIndicesFinish.tv_sec - sortUniqueIndicesStart.tv_sec;
+        cout << "sort Unique Indices time = " << sortUniqueIndicesTime <<endl;
+        auto last = unique(uniqueindices.begin(), uniqueindices.end());
 		uniqueindices.erase(last,uniqueindices.end());
-		//cout << "leaf node: uniqueindices.size() = "<< uniqueindices.size()<<endl;
+        
+        //cout << "leaf node: uniqueindices.size() = "<< uniqueindices.size()<<endl;
 		/* for(int i=0; i<uniqueindices.size(); i++){
 			cout << "idx "<<i<<" = "<<uniqueindices[i]<<", ";
 		}
@@ -551,6 +564,9 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
         gettimeofday(&updateCoOccurMapFinish, NULL);
         double coOccurMapUpdateTime = updateCoOccurMapFinish.tv_sec - updateCoOccurMapStart.tv_sec;
         cout << "co-occur map update time: "<<coOccurMapUpdateTime<<endl;
+        gettimeofday(&createLeafNodeFinish, NULL);
+        double createLeafNodeTime = createLeafNodeFinish.tv_sec - createLeafNodeStart.tv_sec;
+        cout << "create leaf node time = " << createLeafNodeTime <<endl;
 		return leafnode;
 	}
 	
@@ -568,8 +584,13 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
 	}
 	
 	/* shuffle the dimensions to get a random sample */
+    struct timeval randomShuffleStart, randomShuffleFinish;
+    gettimeofday(&randomShuffleStart, NULL);
 	random_shuffle(dimensions.begin(), dimensions.end());
-	
+    gettimeofday(&randomShuffleFinish, NULL);
+    double randomShuffleTime = randomShuffleFinish.tv_sec - randomShuffleFinish.tv_sec;
+    cout << "random shuffle time = "<<randomShuffleTime<<endl;
+    
 	/* subset_dims_size is the number of dimensions to test 
 	*	with one-dimensional k-means
 	*/
@@ -582,8 +603,13 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
 	//cout << endl;
 	
 	/* choose best splitting dimension from among candidates */
-	int splitting_dim = chooseBestSplit(X, splitting_dim_candidates);
-	//cout << "splitting dimension at depth "<<d<<" = "<<splitting_dim<<endl;
+    struct timeval chooseSplitStart, chooseSplitFinish;
+    gettimeofday(&chooseSplitStart, NULL);
+    int splitting_dim = chooseBestSplit(X, splitting_dim_candidates);
+    gettimeofday(&chooseSplitFinish, NULL);
+    double chooseSplitTime = chooseSplitFinish.tv_sec - chooseSplitStart.tv_sec;
+    cout << "choose best split time = "<< chooseSplitTime << endl;
+    //cout << "splitting dimension at depth "<<d<<" = "<<splitting_dim<<endl;
 	
 	/* project onto splitting dimension */	
 	//cout << " projecting data onto splitting dimension "<<endl;
