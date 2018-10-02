@@ -14,6 +14,8 @@
 #include <memory> //unique_ptr
 #include <unordered_map>
 #include <utility> //pair
+#include <sys/time.h>
+#include <boost/algorithm/string.hpp>
 
 using namespace std;
 
@@ -485,29 +487,29 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
 	 * 	depth limit is met
 	*/
 	if(d>=depth_threshold || npts <= min_pts_in_leaf){
-		//cout << "d>="<<depth_threshold<<" or "<<npts<<"<=2"<<endl;
-	}
-	if(d>=depth_threshold || npts <= min_pts_in_leaf){
+		//cout << "d>="<<depth_threshold<<" or "<<npts<<"<="<<min_pts_in_leaf<<endl;
 		//cout << "creating new leaf node with "<<npts<<" points "<<endl;
 		TwoMeansTreeNode * leafnode = new TwoMeansTreeNode(X, d, true, idparent);
 		/* store the indices of points that co-occur
 			in the leaf node */
 		vector<int> uniqueindices;
 		uniqueindices = indices;
-		cout << "leaf node: indices.size() = "<< indices.size()<<endl;
+		/*cout << "leaf node: indices.size() = "<< indices.size()<<endl;
 		cout << "indices: ";
 		for(int index=0; index<indices.size(); index++){
 			cout << indices[index]<<", ";
 		}
-		cout <<endl;
+		cout <<endl;*/
+		
 		sort(uniqueindices.begin(), uniqueindices.end());
 		auto last = unique(uniqueindices.begin(), uniqueindices.end());	
 		uniqueindices.erase(last,uniqueindices.end());
-		cout << "leaf node: uniqueindices.size() = "<< uniqueindices.size()<<endl;
+		//cout << "leaf node: uniqueindices.size() = "<< uniqueindices.size()<<endl;
 		/* for(int i=0; i<uniqueindices.size(); i++){
 			cout << "idx "<<i<<" = "<<uniqueindices[i]<<", ";
-		}*/
-		cout<<endl;
+		}
+		cout<<endl;*/
+		
 		for(int it = 0; it<uniqueindices.size(); it++){
 			int i = uniqueindices[it];
 			//cout << "i = "<<i;
@@ -594,7 +596,6 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
 	//cout << "splitting data"<<endl;
 	bool closertoMu1[npts];
 	split_1D_DataBy2Means(X, midpt, closertoMu1, splitting_dim);
-	//splitDataBy2Means(X, means, closertoMu1);
 	//cout << "split data of size "<<npts<<"by 2-means."<<endl;	
 	vector< vector<double> > leftsplit;
 	vector<int> leftindices;
@@ -694,9 +695,14 @@ vector< TwoMeansTreeNode * > buildRandomForest(vector< vector<double> > X, int n
 			sampleXs.push_back( X[randindices[j]] );
 		}
 		//vector< vector<double> > sampleXs = getRandomSample(X, X.size(), appearsInTree, i);
-		TwoMeansTreeNode * tree = buildTwoMeansTree(randindices, sampleXs, 0, depthThreshold, 0);
-		forest.push_back(tree);
+        struct timeval buildTreeStart, buildTreeFinish;
+        gettimeofday(&buildTreeStart, NULL);
+        TwoMeansTreeNode * tree = buildTwoMeansTree(randindices, sampleXs, 0, depthThreshold, 0);
+		gettimeofday(&buildTreeFinish, NULL);
+        double buildTreeTime = buildTreeFinish.tv_sec - buildTreeStart.tv_sec;
+        forest.push_back(tree);
 		cout << "finished tree "<<i<<endl;
+        cout << "time to build tree "<< buildTreeTime << " seconds "<< endl;
 	}
 	return forest;
 }
@@ -850,19 +856,133 @@ bool appearInSameLeafNode(vector<double> a, vector<double> b, TwoMeansTreeNode* 
 	}
 }
 
+/* code from : https://stackoverflow.com/questions/8286668/how-to-read-mnist-data-in-c */
+int reverseInt (int i) 
+{
+    unsigned char c1, c2, c3, c4;
+
+    c1 = i & 255;
+    c2 = (i >> 8) & 255;
+    c3 = (i >> 16) & 255;
+    c4 = (i >> 24) & 255;
+
+    return ((int)c1 << 24) + ((int)c2 << 16) + ((int)c3 << 8) + c4;
+}
+vector< vector<double> > read_mnist(string folder)
+{
+    vector< vector<double> > Xs;
+    string fname = folder+"/t10k-images-idx3-ubyte";
+    cout << "filename = "<<fname<<endl;
+    ifstream file (fname);
+    if (file.is_open())
+    {
+        int magic_number=0;
+        int number_of_images=0;
+        int n_rows=0;
+        int n_cols=0;
+        file.read((char*)&magic_number,sizeof(magic_number)); 
+        magic_number= reverseInt(magic_number);
+        file.read((char*)&number_of_images,sizeof(number_of_images));
+        number_of_images= reverseInt(number_of_images);
+        file.read((char*)&n_rows,sizeof(n_rows));
+        n_rows= reverseInt(n_rows);
+        file.read((char*)&n_cols,sizeof(n_cols));
+        n_cols= reverseInt(n_cols);
+        for(int i=0;i<number_of_images;++i)
+        {
+            vector<double> Xvec;
+            for(int r=0;r<n_rows;++r)
+            {
+                for(int c=0;c<n_cols;++c)
+                {
+                    unsigned char temp=0;
+                    file.read((char*)&temp,sizeof(temp));
+                    cout << "char = "<<temp<<endl;
+		    cout << " (double) char = "<<(double) temp <<endl;
+		    Xvec.push_back((double) temp);
+		}
+            }
+	    //cout << "Xvec.size() = "<<Xvec.size()<<endl;
+	    Xs.push_back(Xvec);
+        }
+    file.close();
+    } else {
+	cout << "failed to open file"<<endl;	
+    }
+    cout << "read MNIST data"<<endl;
+    return Xs;
+}
+
+void printEstimatedSimilarities(string ofss_string, int datasetsize, int **appearsInTree, int ntrees){
+    if(datasetsize<1){
+        cout << "printEstimatedSimilarities: Error: dataset size < 1"<<endl;
+        exit(0);
+    }
+    
+    /* for each pair of points, print out the number of times the two points
+     appeared in the same leaf node divided by the number of times
+     the two points were both used to build a tree */
+    double estimated_sim_ij=0.0;
+    ofstream est_sim_file;
+    est_sim_file.open(ofss_string.c_str());
+    for(int i=0; i<datasetsize; i++){
+        //cout << "point "<<i<<": ";
+        for(int j=0; j<datasetsize; j++){
+            int treeappearances = 0;
+            estimated_sim_ij = 0;
+            for(int t=0; t<ntrees; t++){
+                if(appearsInTree[i][t]>0 && appearsInTree[j][t]>0){
+                    treeappearances++;
+                    //treeappearances += appearsInTree[i][t]*appearsInTree[j][t];
+                }
+            }
+            if(j<i){
+                auto pairvec = coOccurMap[i];
+                for(int m=0; m<pairvec.size(); m++){
+                    if((pairvec[m]).first == j){
+                        estimated_sim_ij = (pairvec[m]).second;
+                    }
+                }
+            } else {
+                auto pairvec = coOccurMap[j];
+                for(int m=0; m<pairvec.size(); m++){
+                    if((pairvec[m]).first == i){
+                        estimated_sim_ij = (pairvec[m]).second;
+                    }
+                }
+            }
+            if(estimated_sim_ij - treeappearances > 0){//>treeappearances && treeappearances >0){
+                cout << "Error: estimated similarity > tree co-appearances"<<endl;
+                cout << "\ti = "<<i<<", j = "<<j;
+                cout << ", tree appeareances = "<<treeappearances<<", ";
+                cout << "co-occurrences = "<<estimated_sim_ij<<endl;
+                exit(0);
+            }
+            if(treeappearances>0) estimated_sim_ij /= (double) treeappearances;
+            if(i==j) estimated_sim_ij = 1;
+            est_sim_file << estimated_sim_ij<<"\t";
+        }
+        est_sim_file<<endl;
+    }
+    est_sim_file.close();
+    cout << "printEstimatedSimilarites: printed estimated similarities to file. "<<endl;
+}
+
 // test driver function
 int main(int argc, char **argv){
 	unsigned int treedepth;
-	
-	if(argc < 4 || argc > 5)
+	if(argc < 5 || argc > 6)
 	{
-		printf("Usage : ./testTwoMeansForest <number of dimensions> <tree depth> <data set size (number of points)> [(optional) inputfile]\n");
+		printf("Usage : ./testTwoMeansForest <number of dimensions> <tree depth> <data set size (number of points)> <number of trees> [(optional) inputfile]\n");
 		exit(-1);
 	}
 	bool readInData = false;
-	if(argc == 5){
+	if(argc == 6){
 		readInData = true;
 	}	
+	
+	string mnist_data_loc = "/Users/veronikastrnadova-neeley/Documents/U-ReRF/MNIST_data";
+	cout << "MNIST data directory: " << mnist_data_loc << endl;
 
 	treedepth = (unsigned int)atoi(argv[2]);
 	int datasetsize = atoi(argv[3]);
@@ -881,10 +1001,17 @@ int main(int argc, char **argv){
 	vector< vector<double> > Y;
 	vector<int> indices;
 	int ndims = atoi(argv[1]);
-	if(readInData){
-		string filename = argv[4];
+	
+	bool readMNISTData = false;
+	
+	if(readMNISTData){
+		cout << "reading in MNIST data..."<<endl;
+		Y = read_mnist(mnist_data_loc);
+	} else if(readInData){
+		string filename = argv[5];
 		size_t found = filename.find_first_of(".");
 		string extension = filename.substr(found, 4);
+		cout << "extension = "<<extension<<endl;
 		if( strcmp(extension.c_str(),".txt") == 0){
 			inFile.open(filename.c_str());
 			if (!inFile) {
@@ -906,6 +1033,35 @@ int main(int argc, char **argv){
 			}
 			inFile.close();
 			cout << "read in text input data; size = "<<Y.size()<<" points."<<endl;
+		} else if ( strcmp(extension.c_str(), ".csv" ) == 0) {
+			inFile.open(filename.c_str());
+			if (!inFile) {
+        			cout << "Unable to open csv file";
+        			exit(1); // terminate with error
+    			}
+			cout << "reading in data..."<<endl;
+			vector<string> line;
+			string val;
+			double x;
+			vector<double> temp;
+			while( inFile.good() ){	
+				getline ( inFile, val, ',' ); // read a string until next comma
+     				//cout << string( val, 1, val.length()-2 );
+				boost::split(line, val, boost::is_any_of(", "));
+				for(int idx=0; idx<line.size(); idx++){
+					x = atof((line[idx]).c_str());
+					temp.push_back(x);
+					if(temp.size()==ndims){
+						Y.push_back(temp);
+						temp.clear();
+					}
+				}
+			}
+			for(int i=0; i<Y.size(); i++){
+				indices.push_back(i);
+			}
+			inFile.close();
+			cout << "read in csv input data; size = "<<Y.size()<<" points."<<endl;
 		} else if( strcmp(extension.c_str(),".bin") == 0 ) {
 			cout << "reading in CIFAR binary file..."<<endl;
 			ifstream inFile2;
@@ -972,8 +1128,10 @@ int main(int argc, char **argv){
 		}
 		cout <<")"<<endl;
 	}*/
+	
+	cout << "data set size = "<<Y.size()<<endl;
 		
-	const int ntrees = 10;//100;
+	const int ntrees = atoi(argv[4]);  //set number of trees manually for now
 	int **appearsInTree = new int *[Y.size()]; /* store whether or not a
 					 	was included in the sample
 						used to build each tree */
@@ -992,14 +1150,19 @@ int main(int argc, char **argv){
 			leafIDs[i][j] = -1; // -1 indicates point doesn't occur in this tree
 		}
 	}
-        
+       
+	struct timeval buildForestStart, buildForestFinish;
+	gettimeofday(&buildForestStart, NULL);  
 	vector< TwoMeansTreeNode* > random2meansforest = buildRandomForest(Y,ntrees, treedepth, appearsInTree);
+	gettimeofday(&buildForestFinish, NULL);  
+	double buildForestTime = buildForestFinish.tv_sec - buildForestStart.tv_sec;
+	cout << "forest building time = "<<buildForestTime<<endl;
 	
 	/* print out whether a point appears in a particular tree */
 	stringstream intreess;
 	if(readInData){
 		intreess<<"point_tree_appearances_"<<datasetsize<<"_pts"
-		<<ndims<<"dimensions_depth"<<treedepth<<argv[4];
+		<<ndims<<"dimensions_depth"<<treedepth<<argv[5];
 	} else {
 		intreess<<"point_tree_appearances_"<<datasetsize<<"_pts"
 		<<ndims<<"dimensions_depth"<<treedepth<<".txt";
@@ -1015,83 +1178,24 @@ int main(int argc, char **argv){
 	appear_in_tree_file.close();	
 
 	/* print out each tree in the forest */
-	for(int i=0; i<random2meansforest.size(); i++){
+	/*for(int i=0; i<random2meansforest.size(); i++){
 		TwoMeansTreeNode * tree = random2meansforest[i];
 		printTree(tree);
-	}
+	}*/
 	
-	/* calculate how many times a pair of points appeared in the same
-		leaf node, out of the samples where both were in bag */	
-	
-	
-	// print out pairwise estimated similarities
+
+    // print out pairwise estimated similarities
 	stringstream ofss;
 	if(readInData){
 		ofss<<"estimatedsim_"<<datasetsize<<"_pts"
-		<<ndims<<"dimensions_depth"<<treedepth<<argv[4];
+		<<ndims<<"dimensions_depth"<<treedepth<<"_"<<ntrees<<"trees"<<argv[5];
 	} else {
 		ofss<<"estimatedsim_"<<datasetsize<<"_pts"
-		<<ndims<<"dimensions_depth"<<treedepth<<".txt";
+		<<ndims<<"dimensions_depth"<<treedepth<<"_"<<ntrees<<"_trees"<<".txt";
 	}
-	cout << "printing estimated similarities to file: "<<ofss.str()<<endl;
-	ofstream est_sim_file;
-	est_sim_file.open(ofss.str().c_str());
-	double true_dist_ij;
-	double estimated_sim_ij=0.0;
-	double coappearances=0;
+	cout << "printing co-occur map and estimated similarities to file: "<<ofss.str()<<endl;
 	printCoOccurMap(datasetsize);
-	/* for each pair of points, print out the number of times the two points
-		appeared in the same leaf node divided by the number of times
-		the two points were both used to build a tree */
-	for(int i=0; i<datasetsize; i++){
-		//cout << "point "<<i<<": ";
-		for(int j=0; j<i; j++){
-			int treeappearances = 0;
-			estimated_sim_ij = 0;
-			for(int t=0; t<ntrees; t++){	
-				if(appearsInTree[i][t]>0 && appearsInTree[j][t]>0){
-					treeappearances++;
-					//treeappearances += appearsInTree[i][t]*appearsInTree[j][t];
-				}
-			}
-			auto pairvec = coOccurMap[i];
-			for(int m=0; m<pairvec.size(); m++){
-				if((pairvec[m]).first == j){
-					estimated_sim_ij = (pairvec[m]).second;
-				}
-			}
-			if(estimated_sim_ij - treeappearances > 0){//>treeappearances && treeappearances >0){ 
-				cout << "Error: estimated similarity > tree co-appearances"<<endl;
-				cout << "\ti = "<<i<<", j = "<<j;
-				cout << ", tree appeareances = "<<treeappearances<<", ";
-				cout << "co-occurrences = "<<estimated_sim_ij<<endl;
-				return 0;
-			}
-			if(treeappearances>0) estimated_sim_ij /= (double) treeappearances;
-			est_sim_file << estimated_sim_ij<<"\t";
-		}
-		est_sim_file<<endl;
-	}
-	est_sim_file.close();
-	/*for(int i=0; i<datasetsize; i++){
-		for(int j=0; j<datasetsize; j++){
-			estimated_sim_ij=0;
-			coappearances=0;
-			for(int k=0; k<ntrees; k++){	
-				if(appearsInTree[i][k]>0 && appearsInTree[j][k]>0){
-					coappearances++;
-					if(appearInSameLeafNode(Y[i],Y[j],random2meansforest[k])){
-						estimated_sim_ij++;
-					}
-				}
-			}
-			if(coappearances>0) estimated_sim_ij /= (double) coappearances;
-			est_sim_file << estimated_sim_ij<<"\t";
-		}
-		est_sim_file<<endl;
-	}
-	est_sim_file.close();
-	*/
+    printEstimatedSimilarities(ofss.str(), datasetsize, appearsInTree, ntrees);
 	
 	/* test random point for nearest neighbors */
 	/* for(int i=0; i<10; i++){
@@ -1115,5 +1219,10 @@ int main(int argc, char **argv){
 			cout << "Euclidean distance between random point and nearest neighbor: "<<euclideanDistance(randpt, neighbor)<<endl;
 		}
 	}*/
+    
+	struct timeval printingFinished;	
+	gettimeofday(&printingFinished, NULL);  
+	double buildForestAndPrintTime = printingFinished.tv_sec - buildForestStart.tv_sec;
+	cout << "forest building and printing time = "<<buildForestAndPrintTime<<endl;
 	return 0;
 }
