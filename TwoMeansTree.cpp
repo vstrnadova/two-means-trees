@@ -510,6 +510,9 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
 		}
 		cout<<endl;*/
 		
+        /* update co-occur map */
+        struct timeval updateCoOccurMapStart, updateCoOccurMapFinish;
+        gettimeofday(&updateCoOccurMapStart, NULL);
 		for(int it = 0; it<uniqueindices.size(); it++){
 			int i = uniqueindices[it];
 			//cout << "i = "<<i;
@@ -545,6 +548,9 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
 				}
 			}
 		}
+        gettimeofday(&updateCoOccurMapFinish, NULL);
+        double coOccurMapUpdateTime = updateCoOccurMapFinish.tv_sec - updateCoOccurMapStart.tv_sec;
+        cout << "co-occur map update time: "<<coOccurMapUpdateTime<<endl;
 		return leafnode;
 	}
 	
@@ -595,7 +601,13 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
 	/* split data based on 2-means partitioning */
 	//cout << "splitting data"<<endl;
 	bool closertoMu1[npts];
+    struct timeval splitData2MeansStart, splitData2MeansFinish;
+    gettimeofday(&splitData2MeansStart, NULL);
 	split_1D_DataBy2Means(X, midpt, closertoMu1, splitting_dim);
+    gettimeofday(&splitData2MeansFinish, NULL);
+    double splitData2MeansTime = splitData2MeansFinish.tv_sec - splitData2MeansStart.tv_sec;
+    cout << "split data by 2-means time = "<<splitData2MeansTime<<endl;
+    
 	//cout << "split data of size "<<npts<<"by 2-means."<<endl;	
 	vector< vector<double> > leftsplit;
 	vector<int> leftindices;
@@ -699,10 +711,10 @@ vector< TwoMeansTreeNode * > buildRandomForest(vector< vector<double> > X, int n
         gettimeofday(&buildTreeStart, NULL);
         TwoMeansTreeNode * tree = buildTwoMeansTree(randindices, sampleXs, 0, depthThreshold, 0);
 		gettimeofday(&buildTreeFinish, NULL);
-        double buildTreeTime = buildTreeFinish.tv_sec - buildTreeStart.tv_sec;
+        double buildTreeTime = buildTreeFinish.tv_sec - buildTreeStart.tv_sec;// + (buildTreeFinish.tv_usec - buildTreeStart.tv_usec)/1000000;
         forest.push_back(tree);
 		cout << "finished tree "<<i<<endl;
-        cout << "time to build tree "<< buildTreeTime << " seconds "<< endl;
+        cout << "time to build tree "<<i<<": "<< buildTreeTime << " seconds "<< endl;
 	}
 	return forest;
 }
