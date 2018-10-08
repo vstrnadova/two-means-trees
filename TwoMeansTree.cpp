@@ -22,7 +22,6 @@ using namespace std;
 /* store pairs of indices (i,j) for each pair 
 of vertices that occur in a leaf node, and the number
 of times they co-occur */ 
-//vector< tuple< int, int, int> > pointleafoccurrences; 
 
 unordered_map< int, vector< pair<int , int> > > coOccurMap;
 
@@ -448,6 +447,12 @@ int chooseBestSplit(vector< vector<double> > Xs, vector<int> splitting_dim_candi
 		for(int i=0; i<npts; i++){
 			projectedXs.push_back(Xs[i][splitting_dim]);
 		}
+        /* If the points all have the same value in this dimension,
+         then what is the right thing to do?
+        if(){
+            
+        }*/
+        
 		/* split points by 2-means in one dimension */
         struct timeval twoMeansStart, twoMeansFinish;
         gettimeofday(&twoMeansStart, NULL);
@@ -524,7 +529,7 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
 		cout<<endl;*/
 		
         /* update co-occur map */
-        struct timeval updateCoOccurMapStart, updateCoOccurMapFinish;
+        /*struct timeval updateCoOccurMapStart, updateCoOccurMapFinish;
         gettimeofday(&updateCoOccurMapStart, NULL);
 		for(int it = 0; it<uniqueindices.size(); it++){
 			int i = uniqueindices[it];
@@ -564,6 +569,7 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
         gettimeofday(&updateCoOccurMapFinish, NULL);
         double coOccurMapUpdateTime = updateCoOccurMapFinish.tv_sec - updateCoOccurMapStart.tv_sec;
         cout << "co-occur map update time: "<<coOccurMapUpdateTime<<endl;
+        */
         gettimeofday(&createLeafNodeFinish, NULL);
         double createLeafNodeTime = createLeafNodeFinish.tv_sec - createLeafNodeStart.tv_sec;
         cout << "create leaf node time = " << createLeafNodeTime <<endl;
@@ -595,6 +601,12 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
 	*	with one-dimensional k-means
 	*/
 	int subset_dims_size = (int) sqrt(ndimensions);
+    bool fixed_mtry = true;
+    if(fixed_mtry){
+        subset_dims_size = 4;
+        cout << "fixing mtry to " <<subset_dims_size<<endl;
+    }
+    
 	//cout << "Dimension subset size = "<<subset_dims_size<<endl;
 	for(int j=0; j<subset_dims_size; j++){
 		//cout << "adding dimension "<<dimensions[j]<<endl;
@@ -768,7 +780,6 @@ vector< vector<double> > kNearestNeighbors(vector<double> x, int k, vector<TwoMe
 		co-occured most frequently with the input
 		point x */
 	vector< vector<double> > leafpoints;
-	//unordered_map< vector<double> , int> coOccurMap;
 	vector< pair<vector<double>, int> > coOccurCounts; 
 	vector< vector<double> > uniqueNeighbors;
 	int maxCoOccurrences = 0;
@@ -779,7 +790,6 @@ vector< vector<double> > kNearestNeighbors(vector<double> x, int k, vector<TwoMe
 		vector< vector<double> > leafpoints = leaf->getPoints();
 		for(int i=0; i<leafpoints.size(); i++){
 			vector<double> y = leafpoints[i];
-			//unordered_map< vector<double>, int >::const_iterator found = coOccurMap.find(y);
   			vector< vector<double> >::iterator found = find(uniqueNeighbors.begin(), uniqueNeighbors.end(), y);
 			//if ( found == coOccurMap.end() ){
 			if ( found == uniqueNeighbors.end() && y != x ){
@@ -1006,6 +1016,59 @@ void printEstimatedSimilarities(string ofss_string, int datasetsize, int **appea
     cout << "printEstimatedSimilarites: printed estimated similarities to file. "<<endl;
 }
 
+/*  eliminateSingleValuedDimensions: input: nxd data set X
+		eliminates all dimensions i that only take a
+		single value v(i) for all n instances.
+		returns the vector that contains all dimensions
+		for which instances take at least 2 values  */
+vector< vector<double> > eliminateSingleValuedDimensions(vector< vector<double> > Y){
+	vector< vector<double> > cleanY;
+	int n = Y.size(); //dataset size
+	
+	if(n < 1){
+		cout << "eliminateSingleValuedDimension: input data size is <1; returning empty vector.";
+		return cleanY;
+	}	
+	
+	int d = Y[0].size(); //d is dimensionality of data; assumes all instances have same dimensionality
+	
+	bool oneValue[d]; 
+     	for(int j = 0; j < d; j++){
+             	oneValue[j]=true;
+     	}	
+
+	// find dimensions where instances only take one value
+	int countSingleValued=0;
+	for(int j=0; j<d; j++){
+		double val = Y[0][j];
+		for(int i=1; i<n; i++){
+			if(oneValue[j] &&  val!=Y[i][j]){
+				oneValue[j] = false;
+			}
+		}
+		if(oneValue[j]){ 
+			cout << "dimension "<<j<<" has only a single value for all instances"<<endl;
+			countSingleValued++;
+		}
+	}
+	
+	// create new, cleaned-up version of input with single-valued dimensions removed
+	int newd = d - countSingleValued;
+	for(int i=0; i<n; i++){
+		vector<double> Y_i;
+		for(int j=0; j<d; j++){
+			if(!oneValue[j]){
+				Y_i.push_back(Y[i][j]);
+			}
+		}
+		assert(Y_i.size() == newd);
+		cleanY.push_back(Y_i);
+	} 
+	assert(n == cleanY.size());
+	
+	return cleanY;
+}
+
 // test driver function
 int main(int argc, char **argv){
 	unsigned int treedepth;
@@ -1168,6 +1231,9 @@ int main(int argc, char **argv){
 	}*/
 	
 	cout << "data set size = "<<Y.size()<<endl;
+	
+	/* pre-process data: eliminate any dimension/feature that takes only one value */
+	Y = eliminateSingleValuedDimensions(Y);
 		
 	const int ntrees = atoi(argv[4]);  //set number of trees manually for now
 	int **appearsInTree = new int *[Y.size()]; /* store whether or not a
@@ -1232,8 +1298,8 @@ int main(int argc, char **argv){
 		<<ndims<<"dimensions_depth"<<treedepth<<"_"<<ntrees<<"_trees"<<".txt";
 	}
 	cout << "printing co-occur map and estimated similarities to file: "<<ofss.str()<<endl;
-	printCoOccurMap(datasetsize);
-    printEstimatedSimilarities(ofss.str(), datasetsize, appearsInTree, ntrees);
+	//printCoOccurMap(datasetsize);
+    //printEstimatedSimilarities(ofss.str(), datasetsize, appearsInTree, ntrees);
 	
 	/* test random point for nearest neighbors */
 	/* for(int i=0; i<10; i++){
