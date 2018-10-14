@@ -449,7 +449,7 @@ int chooseBestSplit(vector< vector<double> > Xs, vector<int> splitting_dim_candi
 		pair< double, double > sqdistsmidptpair = twoMeansOneD(projectedXs);//twomeans(X);
         gettimeofday(&twoMeansFinish, NULL);
         double twoMeansTime = twoMeansFinish.tv_sec - twoMeansStart.tv_sec;
-        cout << " two means time = " << twoMeansTime << endl;
+        //cout << " two means time = " << twoMeansTime << endl;
         sumsqdists = sqdistsmidptpair.first;
 		//cout << "chooseBestSplit: sumsqdists at dimension"
 		//<<splitting_dim<<" = "<<sumsqdists<<endl;
@@ -508,7 +508,7 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
 		sort(uniqueindices.begin(), uniqueindices.end());
 		gettimeofday(&sortUniqueIndicesFinish, NULL);
         double sortUniqueIndicesTime = sortUniqueIndicesFinish.tv_sec - sortUniqueIndicesStart.tv_sec;
-        cout << "sort Unique Indices time = " << sortUniqueIndicesTime <<endl;
+        //cout << "sort Unique Indices time = " << sortUniqueIndicesTime <<endl;
         auto last = unique(uniqueindices.begin(), uniqueindices.end());
 		uniqueindices.erase(last,uniqueindices.end());
         
@@ -586,7 +586,7 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
 	random_shuffle(dimensions.begin(), dimensions.end());
     gettimeofday(&randomShuffleFinish, NULL);
     double randomShuffleTime = randomShuffleFinish.tv_sec - randomShuffleFinish.tv_sec;
-    cout << "random shuffle time = "<<randomShuffleTime<<endl;
+    //cout << "random shuffle time = "<<randomShuffleTime<<endl;
     
 	/* subset_dims_size is the number of dimensions to test 
 	*	with one-dimensional k-means
@@ -635,7 +635,7 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
 	split_1D_DataBy2Means(X, midpt, closertoMu1, splitting_dim);
     gettimeofday(&splitData2MeansFinish, NULL);
     double splitData2MeansTime = splitData2MeansFinish.tv_sec - splitData2MeansStart.tv_sec;
-    cout << "split data by 2-means time = "<<splitData2MeansTime<<endl;
+    //cout << "split data by 2-means time = "<<splitData2MeansTime<<endl;
     
 	//cout << "split data of size "<<npts<<"by 2-means."<<endl;	
 	vector< vector<double> > leftsplit;
