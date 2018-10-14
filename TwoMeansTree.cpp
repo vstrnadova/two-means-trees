@@ -180,18 +180,8 @@ void printTree(TwoMeansTreeNode *tree){
 	if( tree->getLeftChild() == NULL && tree->getRightChild()==NULL ){
 		vector< vector<double> > pts = tree->getPoints();
 		if(pts.size()==0) cout << "Warning: Leaf node with no points."<<endl;
-		cout << "Leaf node "//<< tree->getID() 
-			<<"points at depth "<<tree->getDepth() <<": <";
-		for(int i=0; i<pts.size(); i++){
-			cout <<" * ";
-			/*cout <<": (";
-			for(int j=0; j<(pts[i]).size(); j++){
-				//cout << ", " << (pts[i])[j];
-				printf("%f10.0, ",(pts[i])[j] );
-			}
-			cout <<"), ";*/
-		}
-		cout <<">"<<endl;
+		cout << "Number of leaf node "//<< tree->getID() 
+			<<"points at depth "<<tree->getDepth() <<": "<<pts.size()<<endl;
 	} else {
 		cout <<"Internal node "//<< tree->getID() 
 			<<" at depth " << tree->getDepth(); 
@@ -529,7 +519,8 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
 		cout<<endl;*/
 		
         /* update co-occur map */
-        /*struct timeval updateCoOccurMapStart, updateCoOccurMapFinish;
+        /*
+        struct timeval updateCoOccurMapStart, updateCoOccurMapFinish;
         gettimeofday(&updateCoOccurMapStart, NULL);
 		for(int it = 0; it<uniqueindices.size(); it++){
 			int i = uniqueindices[it];
@@ -601,7 +592,7 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
 	*	with one-dimensional k-means
 	*/
 	int subset_dims_size = (int) sqrt(ndimensions);
-    bool fixed_mtry = true;
+    bool fixed_mtry = false;
     if(fixed_mtry){
         subset_dims_size = 4;
         cout << "fixing mtry to " <<subset_dims_size<<endl;
@@ -770,6 +761,8 @@ TwoMeansTreeNode* classLeaf(vector<double> x, TwoMeansTreeNode* t){
 		}	
 	}
 }
+
+
 
 vector< vector<double> > kNearestNeighbors(vector<double> x, int k, vector<TwoMeansTreeNode*> forest){
 	vector< vector<double> > neighbors;
@@ -961,7 +954,7 @@ vector< vector<double> > read_mnist(string folder)
     return Xs;
 }
 
-void printEstimatedSimilarities(string ofss_string, int datasetsize, int **appearsInTree, int ntrees){
+void printEstimatedSimilarities(string ofss_string, int datasetsize, int **appearsInTree, int ntrees, vector< TwoMeansTreeNode * > RF, vector< vector<double> > X){
     if(datasetsize<1){
         cout << "printEstimatedSimilarities: Error: dataset size < 1"<<endl;
         exit(0);
@@ -981,9 +974,12 @@ void printEstimatedSimilarities(string ofss_string, int datasetsize, int **appea
             for(int t=0; t<ntrees; t++){
                 if(appearsInTree[i][t]>0 && appearsInTree[j][t]>0){
                     treeappearances++;
+                    if(appearInSameLeafNode(X[i],X[j],RF[t]) ){
+                        estimated_sim_ij++;
+                    }
                     //treeappearances += appearsInTree[i][t]*appearsInTree[j][t];
                 }
-            }
+            }/*
             if(j<i){
                 auto pairvec = coOccurMap[i];
                 for(int m=0; m<pairvec.size(); m++){
@@ -998,7 +994,7 @@ void printEstimatedSimilarities(string ofss_string, int datasetsize, int **appea
                         estimated_sim_ij = (pairvec[m]).second;
                     }
                 }
-            }
+            }*/
             if(estimated_sim_ij - treeappearances > 0){//>treeappearances && treeappearances >0){
                 cout << "Error: estimated similarity > tree co-appearances"<<endl;
                 cout << "\ti = "<<i<<", j = "<<j;
@@ -1067,6 +1063,20 @@ vector< vector<double> > eliminateSingleValuedDimensions(vector< vector<double> 
 	assert(n == cleanY.size());
 	
 	return cleanY;
+}
+
+void printPointTreeAppearances(string ofname, int **appearsInTree, int datasetsize, int ntrees){
+
+	ofstream appear_in_tree_file;
+	appear_in_tree_file.open(ofname.c_str());
+	for(int i=0; i<datasetsize; i++){
+		for(int j=0; j<ntrees; j++){
+			appear_in_tree_file << appearsInTree[i][j]<<"\t";
+		}
+		appear_in_tree_file <<endl;
+	}
+	appear_in_tree_file.close();	
+	cout << "printed point-tree appearances"<<endl;
 }
 
 // test driver function
@@ -1271,23 +1281,14 @@ int main(int argc, char **argv){
 		intreess<<"point_tree_appearances_"<<datasetsize<<"_pts"
 		<<ndims<<"dimensions_depth"<<treedepth<<".txt";
 	}
-	ofstream appear_in_tree_file;
-	appear_in_tree_file.open(intreess.str().c_str());
-	for(int i=0; i<Y.size(); i++){
-		for(int j=0; j<ntrees; j++){
-			appear_in_tree_file << appearsInTree[i][j]<<"\t";
-		}
-		appear_in_tree_file <<endl;
-	}
-	appear_in_tree_file.close();	
-
+	printPointTreeAppearances(intreess.str(), appearsInTree, Y.size(), ntrees);
+		
 	/* print out each tree in the forest */
 	/*for(int i=0; i<random2meansforest.size(); i++){
 		TwoMeansTreeNode * tree = random2meansforest[i];
 		printTree(tree);
 	}*/
 	
-
     // print out pairwise estimated similarities
 	stringstream ofss;
 	if(readInData){
@@ -1299,7 +1300,7 @@ int main(int argc, char **argv){
 	}
 	cout << "printing co-occur map and estimated similarities to file: "<<ofss.str()<<endl;
 	//printCoOccurMap(datasetsize);
-    //printEstimatedSimilarities(ofss.str(), datasetsize, appearsInTree, ntrees);
+    printEstimatedSimilarities(ofss.str(), datasetsize, appearsInTree, ntrees, random2meansforest, Y);
 	
 	/* test random point for nearest neighbors */
 	/* for(int i=0; i<10; i++){
