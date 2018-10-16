@@ -421,27 +421,27 @@ void splitDataBy2Means(vector<vector<double> > X, vector< vector<double> > mus, 
 	}
 }
 	
-int chooseBestSplit(vector< vector<double> > Xs, vector<int> splitting_dim_candidates){
-	/* project X's onto splitting dimension */
+int chooseBestSplit(vector< vector<double> > Xs, vector<int> clean_split_candidates){
+    cout << "chooseBestSplit: number of candidates: "<<clean_split_candidates.size()<<endl;
+    /* project X's onto splitting dimension */
 	vector<double> projectedXs;
 	int npts = Xs.size();
 	//cout <<"chooseBestSplit: number of input points = "<<npts<<endl;
 	double sumsqdists, minsumsqdists=numeric_limits<double>::max();
 	int bestSplitDim = -1;
 
-	/* test each splitting dimension from set of candidates,
-	* save the best splitting dimension in terms of k-means
-	*  optimality */
-	for(int j=0; j<splitting_dim_candidates.size(); j++){
-		int splitting_dim = splitting_dim_candidates[j];
-		for(int i=0; i<npts; i++){
+	/* assumes clean_split_candidates are features for which
+        the data has at least 2 values */
+	for(int j=0; j<clean_split_candidates.size(); j++){
+		int splitting_dim = clean_split_candidates[j];
+        for(int i=0; i<npts; i++){
 			projectedXs.push_back(Xs[i][splitting_dim]);
 		}
-        /* If the points all have the same value in this dimension,
-         then what is the right thing to do?
-        if(){
-            
-        }*/
+    
+        /* If the points all have the same value in a dimension then abort */
+        vector<double> sortedXs = projectedXs;
+        sort(sortedXs.begin(), sortedXs.end());
+        assert(sortedXs.front() != sortedXs.back());
         
 		/* split points by 2-means in one dimension */
         struct timeval twoMeansStart, twoMeansFinish;
@@ -570,20 +570,49 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
 	int ndimensions;
 	if(npts>0){
 		ndimensions = (X[0]).size(); //assumes X's are all same dimensionality
-	}
+    }
 	
 	/* Choose a random (with replacement) subset of fixed size
 	   representing splitting dimension candidates */
 	vector<int> splitting_dim_candidates;
 	vector<int> dimensions;
+    vector<double> projectedXs;
 	for(int j=0; j<ndimensions; j++){
 		dimensions.push_back(j);	
 	}
-	
+    
+    /* If the points all have the same value in a dimension,
+     then discard this dimension from the set of candidates */
+    for(int j=0; j<dimensions.size(); j++){
+        int splitting_dim = dimensions[j];
+        for(int i=0; i<npts; i++){
+            projectedXs.push_back(X[i][splitting_dim]);
+        }
+        
+        vector<double> sortedXs = projectedXs;
+        sort(sortedXs.begin(), sortedXs.end());
+        if(sortedXs.front() != sortedXs.back()){
+            splitting_dim_candidates.push_back(splitting_dim);
+        }
+        projectedXs.clear();
+    }
+    cout << "number of splitting dimension candidates with at least two values: " << splitting_dim_candidates.size()<<endl;
+    
+    if(splitting_dim_candidates.size()==0){
+        cout << "all dimensions have the same value for all instances; creating leaf node" <<endl;
+        TwoMeansTreeNode * leafnode = new TwoMeansTreeNode(X, d, true, idparent);
+        vector<int> uniqueindices;
+        uniqueindices = indices;
+        sort(uniqueindices.begin(), uniqueindices.end());
+        auto last = unique(uniqueindices.begin(), uniqueindices.end());
+        uniqueindices.erase(last,uniqueindices.end());
+        return leafnode;
+    }
+    
 	/* shuffle the dimensions to get a random sample */
     struct timeval randomShuffleStart, randomShuffleFinish;
     gettimeofday(&randomShuffleStart, NULL);
-	random_shuffle(dimensions.begin(), dimensions.end());
+	random_shuffle(splitting_dim_candidates.begin(), splitting_dim_candidates.end());
     gettimeofday(&randomShuffleFinish, NULL);
     double randomShuffleTime = randomShuffleFinish.tv_sec - randomShuffleFinish.tv_sec;
     //cout << "random shuffle time = "<<randomShuffleTime<<endl;
@@ -591,24 +620,25 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
 	/* subset_dims_size is the number of dimensions to test 
 	*	with one-dimensional k-means
 	*/
-	int subset_dims_size = (int) sqrt(ndimensions);
+	int mtry = (int) sqrt(ndimensions);
     bool fixed_mtry = false;
     if(fixed_mtry){
-        subset_dims_size = 4;
-        cout << "fixing mtry to " <<subset_dims_size<<endl;
+        mtry = 4;
+        cout << "fixing mtry to " <<mtry<<endl;
     }
     
-	//cout << "Dimension subset size = "<<subset_dims_size<<endl;
-	for(int j=0; j<subset_dims_size; j++){
-		//cout << "adding dimension "<<dimensions[j]<<endl;
-		splitting_dim_candidates.push_back(dimensions[j]);
-	}
-	//cout << endl;
-	
-	/* choose best splitting dimension from among candidates */
+	//cout << "mtry = "<<subset_dims_size<<endl;
+    vector<int> subset_split_dim_candidates;
+    for(int m=0; m<mtry; m++){
+        subset_split_dim_candidates.push_back(splitting_dim_candidates[m]);
+    }
+    
+    /* test each splitting dimension from set of candidates,
+     * choose the best splitting dimension in terms of k-means
+     *  optimality */
     struct timeval chooseSplitStart, chooseSplitFinish;
     gettimeofday(&chooseSplitStart, NULL);
-    int splitting_dim = chooseBestSplit(X, splitting_dim_candidates);
+    int splitting_dim = chooseBestSplit(X, subset_split_dim_candidates);
     gettimeofday(&chooseSplitFinish, NULL);
     double chooseSplitTime = chooseSplitFinish.tv_sec - chooseSplitStart.tv_sec;
     cout << "choose best split time = "<< chooseSplitTime << endl;
@@ -616,7 +646,7 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
 	
 	/* project onto splitting dimension */	
 	//cout << " projecting data onto splitting dimension "<<endl;
-	vector<double> projectedXs = projectOntoOneDim(X, splitting_dim);
+	projectedXs = projectOntoOneDim(X, splitting_dim);
 	
 	/* perform 2-means clustering of data in one dimension */
 	//cout << "computing means with 2-means"<<endl;
