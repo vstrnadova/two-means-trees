@@ -244,7 +244,7 @@ void printLeafNodes(TwoMeansTreeNode *tree){
  *	between the boundaries of the two
  *	clusters  
  */
-pair< double, double > twoMeansOneD(vector<double> X){
+pair< double, double > twoMeansOneD(vector<double> &X){
 	int npts = X.size();
 	//cout << "twoMeansOneD: number of input points = "<<npts<<endl;
  	
@@ -324,7 +324,7 @@ pair< double, double > twoMeansOneD(vector<double> X){
 	input data X
 	return the two means 
 */
-vector< vector<double> > twomeans(vector< vector<double> > X){	
+vector< vector<double> > twomeans(vector< vector<double> > &X){
 	int npts = X.size();
 	int ndims=0;
 	if(!X.empty()){
@@ -1137,7 +1137,9 @@ int main(int argc, char **argv){
 	cout << "Tree 1: "<< endl;
 	printTree(tree);
 	*/
-		
+	
+    struct timeval readDataStart, readDataFinish;
+    gettimeofday(&readDataStart, NULL);
 	ifstream inFile;
 	vector< vector<double> > Y;
 	vector<int> indices;
@@ -1254,6 +1256,9 @@ int main(int argc, char **argv){
 			temp.clear();
 		}
 	}
+    gettimeofday(&readDataFinish, NULL);
+    double readDataTime = readDataFinish.tv_sec - readDataStart.tv_sec;
+    cout << "read data time = "<<readDataTime<<endl;
 	//cout << " generating tree2..."<<endl;
 	//TwoMeansTreeNode * tree2 = buildTwoMeansTree(indices, Y, 0, treedepth, 0);
 	//cout << "Tree 2: "<< endl;
@@ -1328,9 +1333,9 @@ int main(int argc, char **argv){
 		ofss<<"estimatedsim_"<<datasetsize<<"_pts"
 		<<ndims<<"dimensions_depth"<<treedepth<<"_"<<ntrees<<"_trees"<<".txt";
 	}
-	cout << "printing co-occur map and estimated similarities to file: "<<ofss.str()<<endl;
+	//cout << "printing co-occur map and estimated similarities to file: "<<ofss.str()<<endl;
 	//printCoOccurMap(datasetsize);
-    printEstimatedSimilarities(ofss.str(), datasetsize, appearsInTree, ntrees, random2meansforest, Y);
+    //printEstimatedSimilarities(ofss.str(), datasetsize, appearsInTree, ntrees, random2meansforest, Y);
 	
 	/* test random point for nearest neighbors */
 	/* for(int i=0; i<10; i++){
@@ -1358,6 +1363,6 @@ int main(int argc, char **argv){
 	struct timeval printingFinished;	
 	gettimeofday(&printingFinished, NULL);  
 	double buildForestAndPrintTime = printingFinished.tv_sec - buildForestStart.tv_sec;
-	cout << "forest building and printing time = "<<buildForestAndPrintTime<<endl;
+	//cout << "forest building and printing time = "<<buildForestAndPrintTime<<endl;
 	return 0;
 }
