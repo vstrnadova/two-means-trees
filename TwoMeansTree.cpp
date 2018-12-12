@@ -39,16 +39,20 @@ class TwoMeansTreeNode {
 		//vector< double > means;
 		//double means[2];
 		vector< vector<double> > points;
+        vector<int> pointIndices;
 		int ndimensions;
 		bool leafNode;
 		int ID;
 	public: 
-		TwoMeansTreeNode(vector< vector<double> > pts, unsigned int d, bool isLeafNode, int id){
+		TwoMeansTreeNode(vector< vector<double> > pts, vector<int> ptIdxs, unsigned int d, bool isLeafNode, int id){
 			if(isLeafNode){
 			    //set points at this node
 			    for(int i=0; i<pts.size();i++){
 			    	points.push_back(pts[i]);
-			    } 
+			    }
+                for(int i=0; i<pts.size(); i++){
+                    pointIndices.push_back(ptIdxs[i]);
+                }
 			    leafNode = true;
 			    ID = id;
 			    //cout << "added points to leaf node"<<endl;
@@ -116,6 +120,10 @@ class TwoMeansTreeNode {
 		int getID(){
 			return this->ID;
 		}
+    
+        vector<int> getPointIndices(){
+            return this->pointIndices;
+        }
 };
 
 bool occurCountGreaterThan(pair< vector<double>, int > a, pair< vector<double>, int > b){
@@ -476,7 +484,7 @@ vector<double> projectOntoOneDim(vector< vector<double> > X, int splitdim){
 	return projectedXs;
 }
 
-TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double> > X, unsigned int d, unsigned int depth_threshold, int idparent){
+TwoMeansTreeNode * buildTwoMeansTree(vector<int> &indices, vector< vector<double> > &X, unsigned int d, unsigned int depth_threshold, int idparent){
 	int npts = X.size();
 	//cout << "X.size() = "<<X.size()<<endl;
 	//cout << "indices.size() = "<<indices.size()<<endl;
@@ -492,75 +500,7 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
     if(d>=depth_threshold || npts <= min_pts_in_leaf){
 		//cout << "d>="<<depth_threshold<<" or "<<npts<<"<="<<min_pts_in_leaf<<endl;
 		//cout << "creating new leaf node with "<<npts<<" points "<<endl;
-		TwoMeansTreeNode * leafnode = new TwoMeansTreeNode(X, d, true, idparent);
-		/* store the indices of points that co-occur
-			in the leaf node */
-		vector<int> uniqueindices;
-		uniqueindices = indices;
-		/*cout << "leaf node: indices.size() = "<< indices.size()<<endl;
-		cout << "indices: ";
-		for(int index=0; index<indices.size(); index++){
-			cout << indices[index]<<", ";
-		}
-		cout <<endl;*/
-        struct timeval sortUniqueIndicesStart, sortUniqueIndicesFinish;
-        gettimeofday(&sortUniqueIndicesStart, NULL);
-		sort(uniqueindices.begin(), uniqueindices.end());
-		gettimeofday(&sortUniqueIndicesFinish, NULL);
-        double sortUniqueIndicesTime = sortUniqueIndicesFinish.tv_sec - sortUniqueIndicesStart.tv_sec;
-        //cout << "sort Unique Indices time = " << sortUniqueIndicesTime <<endl;
-        auto last = unique(uniqueindices.begin(), uniqueindices.end());
-		uniqueindices.erase(last,uniqueindices.end());
-        
-        //cout << "leaf node: uniqueindices.size() = "<< uniqueindices.size()<<endl;
-		/* for(int i=0; i<uniqueindices.size(); i++){
-			cout << "idx "<<i<<" = "<<uniqueindices[i]<<", ";
-		}
-		cout<<endl;*/
-		
-        /* update co-occur map */
-        /*
-        struct timeval updateCoOccurMapStart, updateCoOccurMapFinish;
-        gettimeofday(&updateCoOccurMapStart, NULL);
-		for(int it = 0; it<uniqueindices.size(); it++){
-			int i = uniqueindices[it];
-			//cout << "i = "<<i;
-			for(int it2 = 0; it2<it; it2++){
-				int j = uniqueindices[it2];
-				//cout <<" j = "<<j<<endl;
-				int numcooccurrences=0;
-				if(j<i){
-					auto found = coOccurMap.find (i);
-					if ( found == coOccurMap.end() ){
-						vector< pair<int, int> > jpair;
-						jpair.push_back( make_pair(j, 1) );
-						//cout << "adding pair ("<<j<<", 1)"<<endl;
-						coOccurMap[i] = jpair;
-					} else {
-						auto pairvec = coOccurMap[i];
-						int jidx;
-						bool foundj = false;
-						for(int k=0; k<pairvec.size(); k++){
-							if((pairvec[k]).first==j){
-								numcooccurrences = (pairvec[k]).second;
-								jidx = k;
-								foundj = true;			
-							}
-						}
-						numcooccurrences++;
-						//cout << "adding pair ("<<j<<", ";
-						//cout << numcooccurrences<<")"<<endl;
-						if(foundj) pairvec[jidx] = make_pair(j, numcooccurrences);
-						else pairvec.push_back(make_pair(j, 1));
-						coOccurMap[i] = pairvec;
-					}
-				}
-			}
-		}
-        gettimeofday(&updateCoOccurMapFinish, NULL);
-        double coOccurMapUpdateTime = updateCoOccurMapFinish.tv_sec - updateCoOccurMapStart.tv_sec;
-        cout << "co-occur map update time: "<<coOccurMapUpdateTime<<endl;
-        */
+		TwoMeansTreeNode * leafnode = new TwoMeansTreeNode(X,indices, d, true, idparent);
         gettimeofday(&createLeafNodeFinish, NULL);
         double createLeafNodeTime = createLeafNodeFinish.tv_sec - createLeafNodeStart.tv_sec;
         cout << "create leaf node time = " << createLeafNodeTime <<endl;
@@ -600,7 +540,7 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
     
     if(splitting_dim_candidates.size()==0){
         cout << "all dimensions have the same value for all instances; creating leaf node" <<endl;
-        TwoMeansTreeNode * leafnode = new TwoMeansTreeNode(X, d, true, idparent);
+        TwoMeansTreeNode * leafnode = new TwoMeansTreeNode(X, indices, d, true, idparent);
         vector<int> uniqueindices;
         uniqueindices = indices;
         sort(uniqueindices.begin(), uniqueindices.end());
@@ -685,7 +625,7 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
 		}
 	}
 	if(leftsplit.size()==0 || rightsplit.size()== 0){ // in this case all 1-D projections were equivalent
-		TwoMeansTreeNode * leafnode = new TwoMeansTreeNode(X, d, true, idparent);
+		TwoMeansTreeNode * leafnode = new TwoMeansTreeNode(X, indices, d, true, idparent);
 		return leafnode;
 	}
 	//cout << "splitting: "<<nleft<<" points left and "<<nright<<" points right"<<endl;
@@ -693,7 +633,7 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> indices, vector< vector<double>
 	/* recurse on left and right sides of tree */
 	TwoMeansTreeNode * leftsubtree = buildTwoMeansTree(leftindices, leftsplit, d+1, depth_threshold, idparent+1);
 	TwoMeansTreeNode * rightsubtree = buildTwoMeansTree(rightindices, rightsplit, d+1, depth_threshold, idparent+2);
-	TwoMeansTreeNode * root = new TwoMeansTreeNode(midptVec, d, false, idparent);
+	TwoMeansTreeNode * root = new TwoMeansTreeNode(midptVec, indices, d, false, idparent);
 	root->setLeftChild(leftsubtree);
 	//cout << "set left child "<<endl;
 	root->setRightChild(rightsubtree);
@@ -1109,6 +1049,68 @@ void printPointTreeAppearances(string ofname, int **appearsInTree, int datasetsi
 	cout << "printed point-tree appearances"<<endl;
 }
 
+void updateSimMtx(TwoMeansTreeNode* t){
+    
+    if(t->isLeafNode()){ /* leaf case */
+        vector<int> uniqueindices = t->getPointIndices();
+        struct timeval sortUniqueIndicesStart, sortUniqueIndicesFinish;
+        gettimeofday(&sortUniqueIndicesStart, NULL);
+        sort(uniqueindices.begin(), uniqueindices.end());
+        gettimeofday(&sortUniqueIndicesFinish, NULL);
+        double sortUniqueIndicesTime = sortUniqueIndicesFinish.tv_sec - sortUniqueIndicesStart.tv_sec;
+        //cout << "sort Unique Indices time = " << sortUniqueIndicesTime <<endl;
+        auto last = unique(uniqueindices.begin(), uniqueindices.end());
+        uniqueindices.erase(last,uniqueindices.end());
+        
+        for(int it = 0; it!=uniqueindices.size(); it++){
+            int i = uniqueindices[it];
+            //cout << "i = "<<i;
+            for(int it2 = 0; it2<it; it2++){
+                int j = uniqueindices[it2];
+                //cout <<" j = "<<j<<endl;
+                int numcooccurrences=0;
+                if(j<i){
+                    auto found = coOccurMap.find (i);
+                    if ( found == coOccurMap.end() ){
+                        vector< pair<int, int> > jpair;
+                        jpair.push_back( make_pair(j, 1) );
+                        //cout << "adding pair ("<<j<<", 1)"<<endl;
+                        coOccurMap[i] = jpair;
+                    } else {
+                        auto pairvec = coOccurMap[i];
+                        int jidx;
+                        bool foundj = false;
+                        for(int k=0; k<pairvec.size(); k++){
+                            if((pairvec[k]).first==j){
+                                numcooccurrences = (pairvec[k]).second;
+                                jidx = k;
+                                foundj = true;
+                            }
+                        }
+                        numcooccurrences++;
+                        //cout << "adding pair ("<<j<<", ";
+                        //cout << numcooccurrences<<")"<<endl;
+                        if(foundj) pairvec[jidx] = make_pair(j, numcooccurrences);
+                        else pairvec.push_back(make_pair(j, 1));
+                        coOccurMap[i] = pairvec;
+                    }
+                }
+            }
+        }
+    } else { /* non-leaf node case */
+        updateSimMtx(t->getLeftChild());
+        updateSimMtx(t->getRightChild());
+    }
+}
+
+void simMtx(vector< TwoMeansTreeNode* > rf){
+    /* for each tree, and each leaf node, update the co-occur map */
+    for(int t=0; t<rf.size(); t++){
+        TwoMeansTreeNode* tr = rf[t];
+        updateSimMtx(tr);
+    }
+}
+
 // test driver function
 int main(int argc, char **argv){
 	unsigned int treedepth;
@@ -1318,6 +1320,14 @@ int main(int argc, char **argv){
 	}
 	printPointTreeAppearances(intreess.str(), appearsInTree, Y.size(), ntrees);
 		
+    /* update co-occur map */
+    struct timeval updateCoOccurMapStart, updateCoOccurMapFinish;
+    gettimeofday(&updateCoOccurMapStart, NULL);
+    simMtx(random2meansforest);
+    gettimeofday(&updateCoOccurMapFinish, NULL);
+    double coOccurMapUpdateTime = updateCoOccurMapFinish.tv_sec - updateCoOccurMapStart.tv_sec;
+    cout << "co-occur map update time: "<<coOccurMapUpdateTime<<endl;
+    
 	/* print out each tree in the forest */
 	/*for(int i=0; i<random2meansforest.size(); i++){
 		TwoMeansTreeNode * tree = random2meansforest[i];
@@ -1333,8 +1343,9 @@ int main(int argc, char **argv){
 		ofss<<"estimatedsim_"<<datasetsize<<"_pts"
 		<<ndims<<"dimensions_depth"<<treedepth<<"_"<<ntrees<<"_trees"<<".txt";
 	}
-	//cout << "printing co-occur map and estimated similarities to file: "<<ofss.str()<<endl;
-	//printCoOccurMap(datasetsize);
+	cout << "printing co-occur map and estimated similarities to file: "<<ofss.str()<<endl;
+	printCoOccurMap(datasetsize);
+    
     //printEstimatedSimilarities(ofss.str(), datasetsize, appearsInTree, ntrees, random2meansforest, Y);
 	
 	/* test random point for nearest neighbors */
