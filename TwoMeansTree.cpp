@@ -23,7 +23,7 @@ using namespace std;
 of vertices that occur in a leaf node, and the number
 of times they co-occur */ 
 
-unordered_map< int, vector< pair<int , int> > > coOccurMap;
+map< pair<int, int>, int > coOccurMap;
 
 bool greaterSecondInPair( pair<int, int> a, pair<int, int> b){
 	return a.second > b.second;
@@ -136,7 +136,13 @@ void printCoOccurMap(int datasetsize){
 	cout << "printing leaf coOccurMap to file: "<<ofss.str()<<endl;
 	ofstream coOccur_file;
 	coOccur_file.open(ofss.str().c_str());
-	for(auto i = 0; i<datasetsize; i++)
+    for(map<pair<int, int>, int>::iterator iter = coOccurMap.begin(); iter != coOccurMap.end(); ++iter)
+    {
+        pair<int,int> pairkey =  iter->first;
+        coOccur_file << "("<< pairkey.first <<" , "<<pairkey.second<<") : " << iter->second << endl;
+    }
+
+    /*for(auto i = 0; i<datasetsize; i++)
 	{	
 		auto found = coOccurMap.find (i);
 		if(found != coOccurMap.end()){
@@ -148,7 +154,7 @@ void printCoOccurMap(int datasetsize){
 			}
 			coOccur_file <<endl;
 		}
-	}
+	}*/
 }
 
 void printLevelOrder(TwoMeansTreeNode *tnode)
@@ -1070,15 +1076,17 @@ void updateSimMtx(TwoMeansTreeNode* t){
                 //cout <<" j = "<<j<<endl;
                 int numcooccurrences=0;
                 if(j<i){
-                    auto found = coOccurMap.find (i);
+                    pair<int, int> ijpair = make_pair(i,j);
+                    auto found = coOccurMap.find(ijpair);
                     if ( found == coOccurMap.end() ){
-                        vector< pair<int, int> > jpair;
-                        jpair.push_back( make_pair(j, 1) );
+                        //vector< pair<int, int> > jpair;
+                        //jpair.push_back( make_pair(j, 1) );
                         //cout << "adding pair ("<<j<<", 1)"<<endl;
-                        coOccurMap[i] = jpair;
+                        coOccurMap[ijpair] = 1;
                     } else {
+                        coOccurMap[ijpair]++;
+                        /*int jidx;
                         auto pairvec = coOccurMap[i];
-                        int jidx;
                         bool foundj = false;
                         for(int k=0; k<pairvec.size(); k++){
                             if((pairvec[k]).first==j){
@@ -1092,7 +1100,7 @@ void updateSimMtx(TwoMeansTreeNode* t){
                         //cout << numcooccurrences<<")"<<endl;
                         if(foundj) pairvec[jidx] = make_pair(j, numcooccurrences);
                         else pairvec.push_back(make_pair(j, 1));
-                        coOccurMap[i] = pairvec;
+                        coOccurMap[i] = pairvec;*/
                     }
                 }
             }
@@ -1343,8 +1351,8 @@ int main(int argc, char **argv){
 		ofss<<"estimatedsim_"<<datasetsize<<"_pts"
 		<<ndims<<"dimensions_depth"<<treedepth<<"_"<<ntrees<<"_trees"<<".txt";
 	}
-	cout << "printing co-occur map and estimated similarities to file: "<<ofss.str()<<endl;
-	printCoOccurMap(datasetsize);
+	//cout << "printing co-occur map and estimated similarities to file: "<<ofss.str()<<endl;
+	//printCoOccurMap(datasetsize);
     
     //printEstimatedSimilarities(ofss.str(), datasetsize, appearsInTree, ntrees, random2meansforest, Y);
 	
