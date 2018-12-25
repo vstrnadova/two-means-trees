@@ -274,28 +274,24 @@ pair< double, double > twoMeansOneD(vector<double> &X){
 		sum2 += *it2;
 		it2++;
 	}
-	if(npts<4){
-		for(int i=0; i<npts; i++){
-			cout << "point "<<i<<" = "<<X[i]<<endl;
-		}
-		cout << "initialization: sum2 = "<<sum2<<endl;
-	}
+    
 	mean2 = sum2/(double) npts;
+    
 	/* initially, set2 contains all points
 	 *	and set1 contains no points 	*/
 	int seenpts=0;
 	double sumsqdists=0.0, minsumsqdists=numeric_limits<double>::max();
 	while(seenpts<(npts-1)){
-		if(npts<4) cout << "seen pts = "<<seenpts<<endl;
+		//if(npts<4) cout << "seen pts = "<<seenpts<<endl;
 		seenpts++;
 		/* adjust sums */
 		sum1+=*it;
 		sum2-=*it;
 		/* adjust means */
 		mean1 = sum1/(double) seenpts;
-		if(npts<4) cout << "mean1 = "<<mean1<<endl;
+		//if(npts<4) cout << "mean1 = "<<mean1<<endl;
 		mean2 = sum2/(double) (npts-seenpts);
-		if(npts<4) cout << "mean2 = "<<mean2<<endl;
+		//if(npts<4) cout << "mean2 = "<<mean2<<endl;
 		//cout << "iteration "<<seenpts<<": means found: mean1="<<mean1<<", mean2="<<mean2<<endl;
 		//cout << " sum1="<<sum1<<", sum2="<<sum2<<endl;	
 		
@@ -319,8 +315,7 @@ pair< double, double > twoMeansOneD(vector<double> &X){
 			minsumsqdists = sumsqdists;
 			double meanofmeans = (mean1+mean2)/2;
 			midpoint = (*it+*(it+1))/2.0; //midpoint is midpoint between the borders of the clusters represented by the two means
-			if(npts<4) cout << "midpoint = "<<midpoint<<endl;
-		 	/*	
+			/*if(npts<4) cout << "midpoint = "<<midpoint<<endl;
 			cout << "min sum sq. dists = "<<minsumsqdists<<endl;
 			cout << "mean1 = "<<mean1;
 			cout << ", mean2 = "<<mean2<<endl;
@@ -453,9 +448,9 @@ int chooseBestSplit(vector< vector<double> > Xs, vector<int> clean_split_candida
 		}
     
         /* If the points all have the same value in a dimension then abort */
-        vector<double> sortedXs = projectedXs;
+        /* vector<double> sortedXs = projectedXs;
         sort(sortedXs.begin(), sortedXs.end());
-        assert(sortedXs.front() != sortedXs.back());
+        assert(sortedXs.front() != sortedXs.back()); */
         
 		/* split points by 2-means in one dimension */
         struct timeval twoMeansStart, twoMeansFinish;
@@ -535,10 +530,29 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> &indices, vector< vector<double
             projectedXs.push_back(X[i][splitting_dim]);
         }
         
-        vector<double> sortedXs = projectedXs;
+        /*vector<double> sortedXs = projectedXs;
         sort(sortedXs.begin(), sortedXs.end());
         if(sortedXs.front() != sortedXs.back()){
             splitting_dim_candidates.push_back(splitting_dim);
+        }*/
+        
+        /* Only add dimension as a split candidate
+            if sample instances take on at least two distinct
+            values in this dimension. */
+        bool allsame = true;
+        //double sameval = projectedXs.front();
+        auto it = projectedXs.begin();
+        double sameval = *(projectedXs.begin());
+        while(allsame == true && it != projectedXs.end()){
+             ++it;
+             double val = *it;
+             if(val !=  sameval){
+                allsame = false;
+                //cout << "val = "<<val<<"; sameval = "<<sameval<<endl;
+             }
+        }
+        if(!allsame){
+         splitting_dim_candidates.push_back(splitting_dim);
         }
         projectedXs.clear();
     }
@@ -950,12 +964,23 @@ void printEstimatedSimilarities(string ofss_string, int datasetsize, int **appea
             for(int t=0; t<ntrees; t++){
                 if(appearsInTree[i][t]>0 && appearsInTree[j][t]>0){
                     treeappearances++;
-                    if(appearInSameLeafNode(X[i],X[j],RF[t]) ){
+                    /*if(appearInSameLeafNode(X[i],X[j],RF[t]) ){
                         estimated_sim_ij++;
-                    }
+                    }*/
                     //treeappearances += appearsInTree[i][t]*appearsInTree[j][t];
                 }
-            }/*
+            }
+            /* initialize estimated similarity between points i and j
+                to be the number of times i and j co-occur in the same
+                leaf node */
+            pair<int, int> ijpair;
+            if(j<i){
+                ijpair = make_pair(i,j);
+            } else if (i<j) {
+                ijpair = make_pair(j,i);
+            }
+            estimated_sim_ij = coOccurMap[ijpair];
+            /*
             if(j<i){
                 auto pairvec = coOccurMap[i];
                 for(int m=0; m<pairvec.size(); m++){
@@ -1070,38 +1095,20 @@ void updateSimMtx(TwoMeansTreeNode* t){
         
         for(int it = 0; it!=uniqueindices.size(); it++){
             int i = uniqueindices[it];
-            //cout << "i = "<<i;
             for(int it2 = 0; it2<it; it2++){
                 int j = uniqueindices[it2];
-                //cout <<" j = "<<j<<endl;
                 int numcooccurrences=0;
+                pair <int, int> ijpair;
                 if(j<i){
-                    pair<int, int> ijpair = make_pair(i,j);
-                    auto found = coOccurMap.find(ijpair);
-                    if ( found == coOccurMap.end() ){
-                        //vector< pair<int, int> > jpair;
-                        //jpair.push_back( make_pair(j, 1) );
-                        //cout << "adding pair ("<<j<<", 1)"<<endl;
-                        coOccurMap[ijpair] = 1;
-                    } else {
-                        coOccurMap[ijpair]++;
-                        /*int jidx;
-                        auto pairvec = coOccurMap[i];
-                        bool foundj = false;
-                        for(int k=0; k<pairvec.size(); k++){
-                            if((pairvec[k]).first==j){
-                                numcooccurrences = (pairvec[k]).second;
-                                jidx = k;
-                                foundj = true;
-                            }
-                        }
-                        numcooccurrences++;
-                        //cout << "adding pair ("<<j<<", ";
-                        //cout << numcooccurrences<<")"<<endl;
-                        if(foundj) pairvec[jidx] = make_pair(j, numcooccurrences);
-                        else pairvec.push_back(make_pair(j, 1));
-                        coOccurMap[i] = pairvec;*/
-                    }
+                    ijpair = make_pair(i,j);
+                } else {
+                    ijpair = make_pair(j,i);
+                }
+                auto found = coOccurMap.find(ijpair);
+                if ( found == coOccurMap.end() ){
+                    coOccurMap[ijpair] = 1;
+                } else if (i<j) {
+                    coOccurMap[ijpair]++;
                 }
             }
         }
@@ -1122,21 +1129,22 @@ void simMtx(vector< TwoMeansTreeNode* > rf){
 // test driver function
 int main(int argc, char **argv){
 	unsigned int treedepth;
-	if(argc < 5 || argc > 6)
+	if(argc < 4 || argc > 6)
 	{
-		printf("Usage : ./testTwoMeansForest <number of dimensions> <tree depth> <data set size (number of points)> <number of trees> [(optional) inputfile]\n");
+		printf("Usage : ./testTwoMeansForest <tree depth> <data set size (number of points)> <number of trees> [(optional) inputfile]  \n");
 		exit(-1);
 	}
 	bool readInData = false;
-	if(argc == 6){
+	if(argc == 5){
 		readInData = true;
 	}	
 	
 	string mnist_data_loc = "/Users/veronikastrnadova-neeley/Documents/U-ReRF/MNIST_data";
 	cout << "MNIST data directory: " << mnist_data_loc << endl;
 
-	treedepth = (unsigned int)atoi(argv[2]);
-	int datasetsize = atoi(argv[3]);
+	treedepth = (unsigned int)atoi(argv[1]);
+	int datasetsize = atoi(argv[2]);
+    cout << "tree depth: "<< treedepth<<"; data set size = "<<datasetsize<<" points. "<<endl;
 
 	// small simple data test
 	/*
@@ -1153,7 +1161,8 @@ int main(int argc, char **argv){
 	ifstream inFile;
 	vector< vector<double> > Y;
 	vector<int> indices;
-	int ndims = atoi(argv[1]);
+	//int ndims = atoi(argv[1]);
+    int ndims=-1;
 	
 	bool readMNISTData = false;
 	
@@ -1161,25 +1170,37 @@ int main(int argc, char **argv){
 		cout << "reading in MNIST data..."<<endl;
 		Y = read_mnist(mnist_data_loc);
 	} else if(readInData){
-		string filename = argv[5];
+		string filename = argv[4];
 		size_t found = filename.find_first_of(".");
 		string extension = filename.substr(found, 4);
 		cout << "extension = "<<extension<<endl;
 		if( strcmp(extension.c_str(),".txt") == 0){
 			inFile.open(filename.c_str());
 			if (!inFile) {
-        			cout << "Unable to text open file";
+        			cout << "Unable to open text file";
         			exit(1); // terminate with error
-    			}
+            }
 			cout << "reading in data..."<<endl;
 			double x;
 			vector<double> temp;
-			while(inFile >> x){	
-				temp.push_back(x);
-				if(temp.size()==ndims){
-					Y.push_back(temp);
-					temp.clear();
-				}
+            vector<string> line;
+            string str;
+            while(inFile){//} >> x){
+                if(!getline(inFile, str)) break;
+                boost::split(line, str, boost::is_any_of(" "));
+                if(ndims == -1) ndims = line.size()-1;
+                if(line.size() != ndims){
+                    cout << "Error: Varying number of dimensions in input file."<<endl;
+                    exit(0);
+                }
+                for(int idx=0; idx<ndims; idx++){ // ignore dimensions beyond the number of dimensions in the first line
+                    x = atof((line[idx]).c_str());
+                    temp.push_back(x);
+                }
+                if(ndims != -1 && temp.size()==ndims){
+                    Y.push_back(temp);
+                    temp.clear();
+                }
 			}
 			for(int i=0; i<Y.size(); i++){
 				indices.push_back(i);
@@ -1188,20 +1209,27 @@ int main(int argc, char **argv){
 			cout << "read in text input data; size = "<<Y.size()<<" points."<<endl;
 		} else if ( strcmp(extension.c_str(), ".csv" ) == 0) {
 			inFile.open(filename.c_str());
-			if (!inFile) {
-        			cout << "Unable to open csv file";
+            if (!inFile) {
+                    cout << "Unable to open csv file"<<endl;
         			exit(1); // terminate with error
     			}
 			cout << "reading in data..."<<endl;
 			vector<string> line;
-			string val;
+			string str;
 			double x;
 			vector<double> temp;
-			while( inFile.good() ){	
-				getline ( inFile, val, ',' ); // read a string until next comma
+			while( inFile.good() ){
+				//getline ( inFile, str, ',' ); // read a string until next comma
      				//cout << string( val, 1, val.length()-2 );
-				boost::split(line, val, boost::is_any_of(", "));
-				for(int idx=0; idx<line.size(); idx++){
+                if(!getline(inFile, str)) break;
+                boost::split(line, str, boost::is_any_of(", "));
+                if(ndims == -1) ndims = line.size()-1;
+                if(line.size()-1 != ndims && ndims !=-1){
+                    cout << "Error: varying number of dimensions."<<endl;
+                    cout << "line size =" << line.size()-1<<endl;
+                    cout << "ndims = "<<ndims<<endl;
+                }
+				for(int idx=0; idx<ndims; idx++){
 					x = atof((line[idx]).c_str());
 					temp.push_back(x);
 					if(temp.size()==ndims){
@@ -1215,6 +1243,7 @@ int main(int argc, char **argv){
 			}
 			inFile.close();
 			cout << "read in csv input data; size = "<<Y.size()<<" points."<<endl;
+            cout << "dimensionality of data = "<<ndims<<endl;
 		} else if( strcmp(extension.c_str(),".bin") == 0 ) {
 			cout << "reading in CIFAR binary file..."<<endl;
 			ifstream inFile2;
@@ -1256,6 +1285,7 @@ int main(int argc, char **argv){
 		}
 	} else {
 		cout << "generating random data"<<endl;
+        ndims = atoi(argv[5]);
 		for(int i=0; i<datasetsize; i++){
 			vector<double> temp;
 			for(int j=0; j<ndims; j++){
@@ -1269,28 +1299,12 @@ int main(int argc, char **argv){
     gettimeofday(&readDataFinish, NULL);
     double readDataTime = readDataFinish.tv_sec - readDataStart.tv_sec;
     cout << "read data time = "<<readDataTime<<endl;
-	//cout << " generating tree2..."<<endl;
-	//TwoMeansTreeNode * tree2 = buildTwoMeansTree(indices, Y, 0, treedepth, 0);
-	//cout << "Tree 2: "<< endl;
-	//printLevelOrder(tree2);
-        
-	//printTree(tree2);	
-	//cout << "Tree 2: number of points in tree = "<<numPoints(tree2)<<endl;
-
-	/* for(int i=0; i<Y.size(); i++){
-		cout << "point "<<i<<": (";
-		for(int j=0; j<Y[i].size(); j++){
-			cout << Y[i][j]<<", ";
-		}
-		cout <<")"<<endl;
-	}*/
-	
 	cout << "data set size = "<<Y.size()<<endl;
 	
 	/* pre-process data: eliminate any dimension/feature that takes only one value */
 	Y = eliminateSingleValuedDimensions(Y);
 		
-	const int ntrees = atoi(argv[4]);  //set number of trees manually for now
+	const int ntrees = atoi(argv[3]);  //set number of trees manually for now
 	int **appearsInTree = new int *[Y.size()]; /* store whether or not a
 					 	was included in the sample
 						used to build each tree */
@@ -1321,7 +1335,7 @@ int main(int argc, char **argv){
 	stringstream intreess;
 	if(readInData){
 		intreess<<"point_tree_appearances_"<<datasetsize<<"_pts"
-		<<ndims<<"dimensions_depth"<<treedepth<<argv[5];
+		<<ndims<<"dimensions_depth"<<treedepth<<argv[4];
 	} else {
 		intreess<<"point_tree_appearances_"<<datasetsize<<"_pts"
 		<<ndims<<"dimensions_depth"<<treedepth<<".txt";
@@ -1354,7 +1368,7 @@ int main(int argc, char **argv){
 	//cout << "printing co-occur map and estimated similarities to file: "<<ofss.str()<<endl;
 	//printCoOccurMap(datasetsize);
     
-    //printEstimatedSimilarities(ofss.str(), datasetsize, appearsInTree, ntrees, random2meansforest, Y);
+    printEstimatedSimilarities(ofss.str(), datasetsize, appearsInTree, ntrees, random2meansforest, Y);
 	
 	/* test random point for nearest neighbors */
 	/* for(int i=0; i<10; i++){
