@@ -446,11 +446,6 @@ int chooseBestSplit(vector< vector<double> > Xs, vector<int> clean_split_candida
         for(int i=0; i<npts; i++){
 			projectedXs.push_back(Xs[i][splitting_dim]);
 		}
-    
-        /* If the points all have the same value in a dimension then abort */
-        /* vector<double> sortedXs = projectedXs;
-        sort(sortedXs.begin(), sortedXs.end());
-        assert(sortedXs.front() != sortedXs.back()); */
         
 		/* split points by 2-means in one dimension */
         struct timeval twoMeansStart, twoMeansFinish;
@@ -485,7 +480,9 @@ vector<double> projectOntoOneDim(vector< vector<double> > X, int splitdim){
 	return projectedXs;
 }
 
-TwoMeansTreeNode * buildTwoMeansTree(vector<int> &indices, vector< vector<double> > &X, unsigned int d, unsigned int depth_threshold, int idparent){
+/* TODO: projectOntoLinearComboOfDims */
+
+TwoMeansTreeNode * buildTwoMeansTree(vector<int> &indices, vector< vector<double> > &X, unsigned int d, unsigned int depth_threshold, int idparent, int m_try){
 	int npts = X.size();
 	//cout << "X.size() = "<<X.size()<<endl;
 	//cout << "indices.size() = "<<indices.size()<<endl;
@@ -530,17 +527,10 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> &indices, vector< vector<double
             projectedXs.push_back(X[i][splitting_dim]);
         }
         
-        /*vector<double> sortedXs = projectedXs;
-        sort(sortedXs.begin(), sortedXs.end());
-        if(sortedXs.front() != sortedXs.back()){
-            splitting_dim_candidates.push_back(splitting_dim);
-        }*/
-        
         /* Only add dimension as a split candidate
             if sample instances take on at least two distinct
             values in this dimension. */
         bool allsame = true;
-        //double sameval = projectedXs.front();
         auto it = projectedXs.begin();
         double sameval = *(projectedXs.begin());
         while(allsame == true && it != projectedXs.end()){
@@ -577,16 +567,10 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> &indices, vector< vector<double
     double randomShuffleTime = randomShuffleFinish.tv_sec - randomShuffleFinish.tv_sec;
     //cout << "random shuffle time = "<<randomShuffleTime<<endl;
     
-	/* subset_dims_size is the number of dimensions to test 
+	/* mtry is the number of dimensions to test
 	*	with one-dimensional k-means
 	*/
-	int mtry = (int) sqrt(ndimensions);
-    bool fixed_mtry = false;
-    if(fixed_mtry){
-        mtry = 4;
-        cout << "fixing mtry to " <<mtry<<endl;
-    }
-    
+    int mtry = m_try;
 	//cout << "mtry = "<<subset_dims_size<<endl;
     vector<int> subset_split_dim_candidates;
     for(int m=0; m<mtry; m++){
@@ -651,8 +635,8 @@ TwoMeansTreeNode * buildTwoMeansTree(vector<int> &indices, vector< vector<double
 	//cout << "splitting: "<<nleft<<" points left and "<<nright<<" points right"<<endl;
 	
 	/* recurse on left and right sides of tree */
-	TwoMeansTreeNode * leftsubtree = buildTwoMeansTree(leftindices, leftsplit, d+1, depth_threshold, idparent+1);
-	TwoMeansTreeNode * rightsubtree = buildTwoMeansTree(rightindices, rightsplit, d+1, depth_threshold, idparent+2);
+	TwoMeansTreeNode * leftsubtree = buildTwoMeansTree(leftindices, leftsplit, d+1, depth_threshold, idparent+1, m_try);
+	TwoMeansTreeNode * rightsubtree = buildTwoMeansTree(rightindices, rightsplit, d+1, depth_threshold, idparent+2, m_try);
 	TwoMeansTreeNode * root = new TwoMeansTreeNode(midptVec, indices, d, false, idparent);
 	root->setLeftChild(leftsubtree);
 	//cout << "set left child "<<endl;
@@ -715,7 +699,15 @@ vector<int> getRandomSampleIndices(int n, int ** appearsInTree, int treeID){
 }
 
 vector< TwoMeansTreeNode * > buildRandomForest(vector< vector<double> > X, int numTrees, unsigned int depthThreshold, int ** appearsInTree){
-	
+    int ndimensions = (X[0]).size();
+    int mtry = (int) sqrt(ndimensions) ;
+    bool fixed_mtry = false;
+    int fixedmtryval = 4;
+    if(fixed_mtry){
+        mtry = fixedmtryval;
+        cout << "fixing mtry to " <<mtry<<endl;
+    }
+    cout << "mtry = "<<mtry<<endl;
 	vector< TwoMeansTreeNode* > forest;
 	for(int i=0; i<numTrees; i++){
 		/* bagging: get a random sample, with replacement, from X */
@@ -728,7 +720,7 @@ vector< TwoMeansTreeNode * > buildRandomForest(vector< vector<double> > X, int n
 		//vector< vector<double> > sampleXs = getRandomSample(X, X.size(), appearsInTree, i);
         struct timeval buildTreeStart, buildTreeFinish;
         gettimeofday(&buildTreeStart, NULL);
-        TwoMeansTreeNode * tree = buildTwoMeansTree(randindices, sampleXs, 0, depthThreshold, 0);
+        TwoMeansTreeNode * tree = buildTwoMeansTree(randindices, sampleXs, 0, depthThreshold, 0, mtry);
 		gettimeofday(&buildTreeFinish, NULL);
         double buildTreeTime = buildTreeFinish.tv_sec - buildTreeStart.tv_sec;// + (buildTreeFinish.tv_usec - buildTreeStart.tv_usec)/1000000;
         forest.push_back(tree);
@@ -1325,7 +1317,7 @@ int main(int argc, char **argv){
 	}
        
 	struct timeval buildForestStart, buildForestFinish;
-	gettimeofday(&buildForestStart, NULL);  
+	gettimeofday(&buildForestStart, NULL);
 	vector< TwoMeansTreeNode* > random2meansforest = buildRandomForest(Y,ntrees, treedepth, appearsInTree);
 	gettimeofday(&buildForestFinish, NULL);  
 	double buildForestTime = buildForestFinish.tv_sec - buildForestStart.tv_sec;
