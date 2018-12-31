@@ -23,10 +23,14 @@ using namespace std;
 of vertices that occur in a leaf node, and the number
 of times they co-occur */ 
 
-map< pair<int, int>, int > coOccurMap;
+map< pair<int, int>, double > coOccurMap;
 
-bool greaterSecondInPair( pair<int, int> a, pair<int, int> b){
-	return a.second > b.second;
+bool greaterSecondInPair( pair<int, double> a, pair<int, double> b){
+    return a.second > b.second;
+}
+
+bool secondInPair( pair<int, double> a, pair<int, double> b){
+    return a.second < b.second;
 }
 
 class TwoMeansTreeNode {
@@ -136,7 +140,7 @@ void printCoOccurMap(int datasetsize){
 	cout << "printing leaf coOccurMap to file: "<<ofss.str()<<endl;
 	ofstream coOccur_file;
 	coOccur_file.open(ofss.str().c_str());
-    for(map<pair<int, int>, int>::iterator iter = coOccurMap.begin(); iter != coOccurMap.end(); ++iter)
+    for(map<pair<int, int>, double>::iterator iter = coOccurMap.begin(); iter != coOccurMap.end(); ++iter)
     {
         pair<int,int> pairkey =  iter->first;
         coOccur_file << "("<< pairkey.first <<" , "<<pairkey.second<<") : " << iter->second << endl;
@@ -717,7 +721,6 @@ vector< TwoMeansTreeNode * > buildRandomForest(vector< vector<double> > X, int n
 		for(int j=0; j<randindices.size(); j++){
 			sampleXs.push_back( X[randindices[j]] );
 		}
-		//vector< vector<double> > sampleXs = getRandomSample(X, X.size(), appearsInTree, i);
         struct timeval buildTreeStart, buildTreeFinish;
         gettimeofday(&buildTreeStart, NULL);
         TwoMeansTreeNode * tree = buildTwoMeansTree(randindices, sampleXs, 0, depthThreshold, 0, mtry);
@@ -744,7 +747,56 @@ TwoMeansTreeNode* classLeaf(vector<double> x, TwoMeansTreeNode* t){
 	}
 }
 
+/* kNNEstSim: returns the indices of the k nearest neighbors
+        in the data set, based on their estimated similarity
+        to the point indexed by i, as determined by the
+        unsupervised random forest */
+vector< int > kNNEstSim(int i, int k, int datasetsize){
+    vector< pair<int, double> > neighbors;
+    double estimated_sim_ij;
+    
+    for(int j=0; j<datasetsize; j++){
+        pair<int, int> ijpair;
+        if(j<i){
+            ijpair = make_pair(i,j);
+        } else if (i<j) {
+            ijpair = make_pair(j,i);
+        }
+        auto found = coOccurMap.find(ijpair);
+        if ( found == coOccurMap.end() ){
+            estimated_sim_ij = 0;
+            cout << "pair ("<<i<<","<<j<<") not found"<<endl;
+        } else {
+            estimated_sim_ij = coOccurMap[ijpair];
+        }
+        //cout << "estimated similarity to point "<<j<<": "<<estimated_sim_ij<<endl;
+        pair<int, double> j_pair = make_pair( j, estimated_sim_ij );
+        neighbors.push_back(j_pair);
+    }
+    sort(neighbors.begin(), neighbors.end(), greaterSecondInPair);
+    /*for(int j = 0; j<10; j++){
+        cout << "near neighbor "<<j<<":"<<(neighbors[j]).first<<"; similarity: "<<(neighbors[j]).second<<endl;
+    }*/
+    vector<int> knn;
+    for(int j = 0; knn.size()<k; j++){
+        knn.push_back((neighbors[j]).first);
+    }
+    return knn;
+}
 
+vector< int > kNNEuclidean(int i, int k, vector< vector<double> > & data){
+    vector< pair<int, double> > neighbors;
+    for(int j=0; j<data.size(); j++){
+        pair<int, double> jpair = make_pair(j, euclideanDistance(data[i], data[j]) );
+        neighbors.push_back(jpair);
+    }
+    sort(neighbors.begin(), neighbors.end(), secondInPair);
+    vector<int> knn;
+    for(int j=0; j<neighbors.size(); j++){
+        knn.push_back((neighbors[j]).first);
+    }
+    return knn;
+}
 
 vector< vector<double> > kNearestNeighbors(vector<double> x, int k, vector<TwoMeansTreeNode*> forest){
 	vector< vector<double> > neighbors;
@@ -956,10 +1008,6 @@ void printEstimatedSimilarities(string ofss_string, int datasetsize, int **appea
             for(int t=0; t<ntrees; t++){
                 if(appearsInTree[i][t]>0 && appearsInTree[j][t]>0){
                     treeappearances++;
-                    /*if(appearInSameLeafNode(X[i],X[j],RF[t]) ){
-                        estimated_sim_ij++;
-                    }*/
-                    //treeappearances += appearsInTree[i][t]*appearsInTree[j][t];
                 }
             }
             /* initialize estimated similarity between points i and j
@@ -972,22 +1020,6 @@ void printEstimatedSimilarities(string ofss_string, int datasetsize, int **appea
                 ijpair = make_pair(j,i);
             }
             estimated_sim_ij = coOccurMap[ijpair];
-            /*
-            if(j<i){
-                auto pairvec = coOccurMap[i];
-                for(int m=0; m<pairvec.size(); m++){
-                    if((pairvec[m]).first == j){
-                        estimated_sim_ij = (pairvec[m]).second;
-                    }
-                }
-            } else {
-                auto pairvec = coOccurMap[j];
-                for(int m=0; m<pairvec.size(); m++){
-                    if((pairvec[m]).first == i){
-                        estimated_sim_ij = (pairvec[m]).second;
-                    }
-                }
-            }*/
             if(estimated_sim_ij - treeappearances > 0){//>treeappearances && treeappearances >0){
                 cout << "Error: estimated similarity > tree co-appearances"<<endl;
                 cout << "\ti = "<<i<<", j = "<<j;
@@ -995,8 +1027,16 @@ void printEstimatedSimilarities(string ofss_string, int datasetsize, int **appea
                 cout << "co-occurrences = "<<estimated_sim_ij<<endl;
                 exit(0);
             }
-            if(treeappearances>0) estimated_sim_ij /= (double) treeappearances;
-            if(i==j) estimated_sim_ij = 1;
+            /* estimated similarity is number of co-occurrences
+                of i and j in the same leaf node divided by the
+                number of times i and j occurr in the same tree */
+            if(treeappearances>0){
+                estimated_sim_ij /= (double) treeappearances;
+            }
+            if(i==j){
+                estimated_sim_ij = 1;
+            }
+            coOccurMap[ijpair] = estimated_sim_ij;
             est_sim_file << estimated_sim_ij<<"\t";
         }
         est_sim_file<<endl;
@@ -1123,16 +1163,19 @@ int main(int argc, char **argv){
 	unsigned int treedepth;
 	if(argc < 4 || argc > 6)
 	{
-		printf("Usage : ./testTwoMeansForest <tree depth> <data set size (number of points)> <number of trees> [(optional) inputfile]  \n");
+		printf("Usage : ./testTwoMeansForest <tree depth> <data set size (number of points)> <number of trees> [(optional) input training file] [(optional) input test file] \n");
 		exit(-1);
 	}
 	bool readInData = false;
-	if(argc == 5){
+    bool readTestData = false;
+	if(argc == 5 || argc == 6){
 		readInData = true;
-	}	
+    } else if(argc == 6) {
+        readTestData = true;
+    }
 	
 	string mnist_data_loc = "/Users/veronikastrnadova-neeley/Documents/U-ReRF/MNIST_data";
-	cout << "MNIST data directory: " << mnist_data_loc << endl;
+	//cout << "MNIST data directory: " << mnist_data_loc << endl;
 
 	treedepth = (unsigned int)atoi(argv[1]);
 	int datasetsize = atoi(argv[2]);
@@ -1277,7 +1320,8 @@ int main(int argc, char **argv){
 		}
 	} else {
 		cout << "generating random data"<<endl;
-        ndims = atoi(argv[5]);
+        ndims = 10; /* fix number of dimensions manually in the case of random data */
+        cout << "number of dimensions = "<<ndims;
 		for(int i=0; i<datasetsize; i++){
 			vector<double> temp;
 			for(int j=0; j<ndims; j++){
@@ -1357,37 +1401,80 @@ int main(int argc, char **argv){
 		ofss<<"estimatedsim_"<<datasetsize<<"_pts"
 		<<ndims<<"dimensions_depth"<<treedepth<<"_"<<ntrees<<"_trees"<<".txt";
 	}
-	//cout << "printing co-occur map and estimated similarities to file: "<<ofss.str()<<endl;
+	cout << "printing estimated similarities to file: "<<ofss.str()<<endl;
 	//printCoOccurMap(datasetsize);
     
-    printEstimatedSimilarities(ofss.str(), datasetsize, appearsInTree, ntrees, random2meansforest, Y);
-	
+    printEstimatedSimilarities(ofss.str(), Y.size(), appearsInTree, ntrees, random2meansforest, Y);
+    struct timeval printingFinished;
+    gettimeofday(&printingFinished, NULL);
+    
 	/* test random point for nearest neighbors */
-	/* for(int i=0; i<10; i++){
-		int rand_idx = rand()%datasetsize;	
+    double precision=0;
+    int nTestPts = 20;
+    int k=5;
+    int atN=5;
+	for(int i=0; i<nTestPts; i++){
+		int rand_idx = rand()%Y.size();
 		vector<double> randpt = Y[rand_idx];
-		cout << "random point: (";
+        cout << "random point index = "<<rand_idx<<endl;
+		/*cout << "random point: (";
 		for(int d=0; d<randpt.size(); d++){
 			cout <<randpt[d]<<",";
 		}
-		cout <<")"<<endl;
-		int k = 5;
-		vector< vector<double> > nearestnbrs = kNearestNeighbors(randpt, k, random2meansforest);	
-		cout << "k nearest neighbors : (";
+		cout <<")"<<endl;*/
+		vector< int > nearestnbrs = kNNEstSim(rand_idx, k, Y.size());
+		cout << "k nearest neighbors based on estimated similarity : (";
 		for(int j=0; j<k; j++){
-			vector<double> neighbor = nearestnbrs[j];
-			for(int d=0; d<neighbor.size(); d++){
-			cout <<neighbor[d];
+			vector<double> neighbor = Y[nearestnbrs[j]];
+			/*for(int d=0; d<neighbor.size(); d++){
+                cout <<neighbor[d];
 				if(d!=neighbor.size()-1) cout <<",";
-			}
-			cout <<")"<<endl;
-			cout << "Euclidean distance between random point and nearest neighbor: "<<euclideanDistance(randpt, neighbor)<<endl;
+			}*/
+            pair<int, int> jpair;
+            if(rand_idx <nearestnbrs[j]){
+                jpair = make_pair(nearestnbrs[j],rand_idx);
+            } else if(nearestnbrs[j] < rand_idx) {
+                jpair = make_pair(rand_idx,nearestnbrs[j]);
+            } else {
+                jpair = make_pair(rand_idx, rand_idx);
+            }
+            double estimated_sim = coOccurMap[jpair];
+            cout << "neighbor "<<j<<": "<<nearestnbrs[j]<<", ";
+            cout << "Euclidean distance: "<<euclideanDistance(randpt, neighbor)<<"; ";
+            cout << "Estimated similarity: "<< estimated_sim << "; ";
 		}
-	}*/
+        cout <<")"<<endl;
+        
+        vector<int> euclideanNearestNeighbors = kNNEuclidean(rand_idx, atN, Y);
+        cout << "Euclidean distance: "<<endl;
+        for(int j=0; j<atN; j++){
+            vector< double > eucNbr = Y[euclideanNearestNeighbors[j]];
+            cout << "neighbor "<<j<<": "<<euclideanNearestNeighbors[j]<<", distance: "<<euclideanDistance(randpt, eucNbr)<<endl;
+        }
+        
+        sort(nearestnbrs.begin(), nearestnbrs.end());
+        sort(euclideanNearestNeighbors.begin(), euclideanNearestNeighbors.end());
+        vector<int> intersectSet(k);
+        vector<int>::iterator it = set_intersection(nearestnbrs.begin(), nearestnbrs.end(), euclideanNearestNeighbors.begin(), euclideanNearestNeighbors.end(), intersectSet.begin());
+        intersectSet.resize(it - intersectSet.begin());
+        
+        cout << "Intersect set: ";
+        for(it = intersectSet.begin(); it!= intersectSet.end(); it++){
+            cout << *it<<", ";
+        }
+        cout <<endl;
+        
+        double precisionAtN = ((double) intersectSet.size())/((double) atN);
+        cout << "Precision at " << atN << ": " << precisionAtN << endl;
+        precision+=precisionAtN;
+	}
+    precision /= atN;
+    cout << "Average precision = " << precision <<endl;
     
-	struct timeval printingFinished;	
-	gettimeofday(&printingFinished, NULL);  
 	double buildForestAndPrintTime = printingFinished.tv_sec - buildForestStart.tv_sec;
 	//cout << "forest building and printing time = "<<buildForestAndPrintTime<<endl;
+    
+    
+    
 	return 0;
 }
