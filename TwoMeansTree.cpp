@@ -16,6 +16,7 @@
 #include <utility> //pair
 #include <sys/time.h>
 #include <boost/algorithm/string.hpp>
+#include <iterator> //back_inserter
 
 using namespace std;
 
@@ -792,7 +793,7 @@ vector< int > kNNEuclidean(int i, int k, vector< vector<double> > & data){
     }
     sort(neighbors.begin(), neighbors.end(), secondInPair);
     vector<int> knn;
-    for(int j=0; j<neighbors.size(); j++){
+    for(int j=0; j<k; j++){
         knn.push_back((neighbors[j]).first);
     }
     return knn;
@@ -1412,7 +1413,7 @@ int main(int argc, char **argv){
     double precision=0;
     int nTestPts = 20;
     int k=5;
-    int atN=5;
+    int atN=50;
 	for(int i=0; i<nTestPts; i++){
 		int rand_idx = rand()%Y.size();
 		vector<double> randpt = Y[rand_idx];
@@ -1447,16 +1448,16 @@ int main(int argc, char **argv){
         
         vector<int> euclideanNearestNeighbors = kNNEuclidean(rand_idx, atN, Y);
         cout << "Euclidean distance: "<<endl;
-        for(int j=0; j<atN; j++){
+        for(int j=0; j<euclideanNearestNeighbors.size(); j++){
             vector< double > eucNbr = Y[euclideanNearestNeighbors[j]];
             cout << "neighbor "<<j<<": "<<euclideanNearestNeighbors[j]<<", distance: "<<euclideanDistance(randpt, eucNbr)<<endl;
         }
         
         sort(nearestnbrs.begin(), nearestnbrs.end());
         sort(euclideanNearestNeighbors.begin(), euclideanNearestNeighbors.end());
-        vector<int> intersectSet(k);
-        vector<int>::iterator it = set_intersection(nearestnbrs.begin(), nearestnbrs.end(), euclideanNearestNeighbors.begin(), euclideanNearestNeighbors.end(), intersectSet.begin());
-        intersectSet.resize(it - intersectSet.begin());
+        vector<int> intersectSet;
+        vector<int>::iterator it;
+        set_intersection(nearestnbrs.begin(), nearestnbrs.end(), euclideanNearestNeighbors.begin(), euclideanNearestNeighbors.end(), back_inserter(intersectSet) );
         
         cout << "Intersect set: ";
         for(it = intersectSet.begin(); it!= intersectSet.end(); it++){
@@ -1468,8 +1469,8 @@ int main(int argc, char **argv){
         cout << "Precision at " << atN << ": " << precisionAtN << endl;
         precision+=precisionAtN;
 	}
-    precision /= atN;
-    cout << "Average precision = " << precision <<endl;
+    precision /= nTestPts;
+    cout << "Average precision = " << precision <<"; number of test points = "<<nTestPts<<endl;
     
 	double buildForestAndPrintTime = printingFinished.tv_sec - buildForestStart.tv_sec;
 	//cout << "forest building and printing time = "<<buildForestAndPrintTime<<endl;
